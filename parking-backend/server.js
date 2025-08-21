@@ -83,45 +83,66 @@ const authenticateToken = (req, res, next) => {
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone, licensePlate } = req.body;
+    const { email, password, firstName, lastName, phone, licensePlate, vehicleMake, vehicleModel } = req.body;
 
-    // Check if user exists
     const [existingUsers] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUsers.length > 0) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const [userResult] = await pool.execute(
-      'INSERT INTO users (email, password_hash) VALUES (?, ?)',
-      [email, hashedPassword]
-    );
+    // Start transaction to ensure data consistency
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    // Create user profile
-    await pool.execute(
-      'INSERT INTO user_profiles (user_id, first_name, last_name, phone, license_plate) VALUES (?, ?, ?, ?, ?)',
-      [userResult.insertId, firstName, lastName, phone, licensePlate]
-    );
+    try {
+      // Create user
+      const [userResult] = await connection.execute(
+        'INSERT INTO users (email, password_hash) VALUES (?, ?)',
+        [email, hashedPassword]
+      );
 
-    // Generate JWT
-    const token = jwt.sign({ userId: userResult.insertId, email }, JWT_SECRET, { expiresIn: '7d' });
+      const userId = userResult.insertId;
 
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: userResult.insertId,
-        email,
-        firstName,
-        lastName,
-        phone,
-        licensePlate
-      }
-    });
+      // Create user profile
+      await connection.execute(
+        'INSERT INTO user_profiles (user_id, first_name, last_name, phone, license_plate) VALUES (?, ?, ?, ?, ?)',
+        [userId, firstName, lastName, phone, licensePlate]
+      );
+
+      // Create primary vehicle 
+      await connection.execute(
+        'INSERT INTO user_vehicles (user_id, license_plate, make, model, color, year, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [userId, licensePlate, vehicleMake, vehicleModel, null, null, true]
+      );
+
+      await connection.commit();
+      connection.release();
+
+      // Generate JWT
+      const token = jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: '7d' });
+
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully',
+        token,
+        user: {
+          id: userId,
+          email,
+          firstName,
+          lastName,
+          phone,
+          licensePlate,
+          vehicleMake,
+          vehicleModel
+        }
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -370,7 +391,15 @@ app.post('/api/vehicles', authenticateToken, async (req, res) => {
   try {
     const { licensePlate, make, model, color, year } = req.body;
 
-    // Check if this is the first vehicle (make it primary)
+    const [existingVehicle] = await pool.execute(
+      'SELECT id FROM user_vehicles WHERE user_id = ? AND license_plate = ?',
+      [req.user.userId, licensePlate]
+    );
+
+    if (existingVehicle.length > 0) {
+      return res.status(400).json({ error: 'Vehicle with this license plate already exists' });
+    }
+
     const [existingVehicles] = await pool.execute(
       'SELECT COUNT(*) as count FROM user_vehicles WHERE user_id = ?',
       [req.user.userId]
@@ -378,15 +407,34 @@ app.post('/api/vehicles', authenticateToken, async (req, res) => {
 
     const isPrimary = existingVehicles[0].count === 0;
 
-    await pool.execute(
-      'INSERT INTO user_vehicles (user_id, license_plate, make, model, color, year, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, licensePlate, make, model, color || null, year || null, isPrimary]
-    );
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    res.status(201).json({
-      success: true,
-      message: 'Vehicle added successfully'
-    });
+    try {
+      await connection.execute(
+        'INSERT INTO user_vehicles (user_id, license_plate, make, model, color, year, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [req.user.userId, licensePlate, make, model, color || null, year || null, isPrimary]
+      );
+
+      if (isPrimary) {
+        await connection.execute(
+          'UPDATE user_profiles SET license_plate = ? WHERE user_id = ?',
+          [licensePlate, req.user.userId]
+        );
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.status(201).json({
+        success: true,
+        message: 'Vehicle added successfully'
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
   } catch (error) {
     console.error('Add vehicle error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -477,7 +525,7 @@ app.delete('/api/vehicles/:vehicleId', authenticateToken, async (req, res) => {
   try {
     const { vehicleId } = req.params;
 
-    // Verify vehicle belongs to user and is not primary
+    // Verify vehicle belongs to user
     const [vehicles] = await pool.execute(
       'SELECT is_primary FROM user_vehicles WHERE id = ? AND user_id = ?',
       [vehicleId, req.user.userId]
@@ -487,8 +535,20 @@ app.delete('/api/vehicles/:vehicleId', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Vehicle not found' });
     }
 
+    // Check total number of vehicles for this user
+    const [vehicleCount] = await pool.execute(
+      'SELECT COUNT(*) as count FROM user_vehicles WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    // Prevent deletion if this is the only vehicle
+    if (vehicleCount[0].count === 1) {
+      return res.status(400).json({ error: 'Cannot delete your only vehicle. Add another vehicle first.' });
+    }
+
+    // Prevent deletion of primary vehicle without setting another as primary
     if (vehicles[0].is_primary) {
-      return res.status(400).json({ error: 'Cannot delete primary vehicle' });
+      return res.status(400).json({ error: 'Cannot delete primary vehicle. Set another vehicle as primary first.' });
     }
 
     await pool.execute(
@@ -649,8 +709,6 @@ app.get('/api/parking-lots/:lotId/spots', async (req, res) => {
 });
 
 // Reservations Routes
-
-
 app.get('/api/reservations', authenticateToken, async (req, res) => {
   try {
     const [reservations] = await pool.execute(
@@ -927,12 +985,10 @@ app.put('/api/reservations/:reservationId/extend', authenticateToken, async (req
 
     console.log('🔄 Extending reservation:', { reservationId, additionalHours, userId: req.user.userId });
 
-    // Validate additionalHours
     if (!additionalHours || additionalHours < 1 || additionalHours > 6) {
       return res.status(400).json({ error: 'Additional hours must be between 1 and 6' });
     }
 
-    // Get reservation details
     const [reservations] = await pool.execute(
       `SELECT r.*, ps.lot_id, pl.hourly_rate 
        FROM reservations r
@@ -948,17 +1004,14 @@ app.put('/api/reservations/:reservationId/extend', authenticateToken, async (req
 
     const reservation = reservations[0];
 
-    // Verify ownership
     if (reservation.user_id !== req.user.userId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Check if reservation can be extended (must be active)
     if (reservation.status !== 'active') {
       return res.status(400).json({ error: 'Only active reservations can be extended' });
     }
 
-    // Check if reservation is currently active (not expired)
     const now = new Date().toLocaleString('sv-SE', {
       timeZone: 'Europe/Bucharest',
       year: 'numeric',
@@ -973,7 +1026,6 @@ app.put('/api/reservations/:reservationId/extend', authenticateToken, async (req
       return res.status(400).json({ error: 'Cannot extend expired reservation' });
     }
 
-    // Calculate new end time
     const currentEndTime = new Date(reservation.end_time);
     const newEndTime = new Date(currentEndTime.getTime() + (additionalHours * 60 * 60 * 1000));
     
@@ -987,11 +1039,9 @@ app.put('/api/reservations/:reservationId/extend', authenticateToken, async (req
       second: '2-digit'
     }).replace('T', ' ');
 
-    // Calculate additional cost
     const additionalCost = parseFloat((reservation.hourly_rate * additionalHours).toFixed(2));
     const newTotalCost = parseFloat((parseFloat(reservation.total_cost) + additionalCost).toFixed(2));
 
-    // Check for conflicts with other reservations
     const [conflicts] = await pool.execute(
       `SELECT id FROM reservations 
        WHERE spot_id = ? AND status = 'active' AND id != ?
@@ -1010,7 +1060,6 @@ app.put('/api/reservations/:reservationId/extend', authenticateToken, async (req
       newTotalCost
     });
 
-    // Update reservation
     await pool.execute(
       'UPDATE reservations SET end_time = ?, total_cost = ? WHERE id = ?',
       [formattedNewEndTime, newTotalCost, reservationId]

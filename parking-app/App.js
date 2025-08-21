@@ -19,7 +19,6 @@ import ChangePassword from './screens/profile/ChangePassword';
 import ManageVehicles from './screens/profile/ManageVehicles';
 import DeleteAccount from './screens/profile/DeleteAccount';
 import ChangePhoto from './screens/profile/ChangePhoto';
-
 import ParkingAPI from './services/api';
 
 const Stack = createStackNavigator();

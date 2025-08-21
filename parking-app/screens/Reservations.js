@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, RefreshControl, Alert, ActivityIndicator, Modal, Linking, Platform, ScrollView, } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { globalStyles } from '../theme/styles';
@@ -49,9 +48,7 @@ const Reservations = ({ navigation }) => {
     return hourlyRate;
   };
 
-  const isPaymentCompleted = (reservation) => {
-    return reservation.payment_status === 'paid' || reservation.payment_status === 'completed';
-  };
+  const isPaymentCompleted = (reservation) => { return reservation.payment_status === 'paid' || reservation.payment_status === 'completed'; };
 
   const extensionOptions = [
     { hours: 1, label: '1 hour' },
@@ -75,7 +72,7 @@ const Reservations = ({ navigation }) => {
         case 'active':
           return status === 'active' || status === 'upcoming';
         case 'completed':
-          return status === 'completed' || status === 'expired';
+          return status === 'completed'; // || status === 'expired';
         case 'cancelled':
           return reservation.status === 'cancelled';
         default:
@@ -198,7 +195,7 @@ const Reservations = ({ navigation }) => {
     
     if (now < startTime) return 'upcoming';
     if (now >= startTime && now <= endTime) return 'active';
-    return 'expired';
+    return 'completed';
   };
 
   const getStatusStyle = (status) => {
@@ -211,8 +208,8 @@ const Reservations = ({ navigation }) => {
         return { backgroundColor: colors.info, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 };
       case 'cancelled':
         return globalStyles.statusOccupied;
-      case 'expired':
-        return { backgroundColor: colors.textMuted, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 };
+      // case 'expired':
+      //   return { backgroundColor: colors.textMuted, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 };
       default:
         return globalStyles.statusReserved;
     }
@@ -310,7 +307,7 @@ const Reservations = ({ navigation }) => {
               <Text style={globalStyles.statusText}>
                 {status === 'upcoming' ? 'Upcoming' :
                  status === 'active' ? 'Active' :
-                 status === 'expired' ? 'Expired' :
+                 //status === 'expired' ? 'Expired' :
                  status === 'cancelled' ? 'Cancelled' :
                  status === 'completed' ? 'Completed' : status}
               </Text>
@@ -554,7 +551,7 @@ const Reservations = ({ navigation }) => {
                           const status = getReservationStatus(selectedReservation);
                           return status === 'upcoming' ? 'Upcoming' :
                                  status === 'active' ? 'Active' :
-                                 status === 'expired' ? 'Expired' :
+                                 //status === 'expired' ? 'Expired' :
                                  status === 'cancelled' ? 'Cancelled' :
                                  status === 'completed' ? 'Completed' : status;
                         })()}

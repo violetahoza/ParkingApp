@@ -24,15 +24,9 @@ const Profile = ({ navigation }) => {
     darkMode: true,
   });
 
-  useFocusEffect(
-    useCallback(() => {
-      loadUserData();
-    }, [])
-  );
+  useFocusEffect(useCallback(() => { loadUserData(); }, []) );
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
+  useEffect(() => { loadSettings(); }, []);
 
   const loadUserData = async () => {
     try {

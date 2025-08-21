@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { globalStyles } from '../../theme/styles';
@@ -22,9 +21,7 @@ const EditProfile = ({ navigation, route }) => {
   const [errors, setErrors] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
+  useEffect(() => { loadUserProfile(); }, []);
 
   useEffect(() => {
     const changes = 

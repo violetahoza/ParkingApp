@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +14,8 @@ const Register = ({ navigation }) => {
     email: '',
     phone: '',
     licensePlate: '',
+    vehicleMake: '',
+    vehicleModel: '',
     password: '',
     confirmPassword: '',
   });
@@ -69,6 +61,14 @@ const Register = ({ navigation }) => {
       newErrors.licensePlate = 'License plate is required';
     }
 
+    if (!formData.vehicleMake.trim()) {
+      newErrors.vehicleMake = 'Vehicle make is required';
+    }
+
+    if (!formData.vehicleModel.trim()) {
+      newErrors.vehicleModel = 'Vehicle model is required';
+    }
+
     if (!formData.password.trim()) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -97,13 +97,15 @@ const Register = ({ navigation }) => {
         email: formData.email,
         phone: formData.phone,
         licensePlate: formData.licensePlate,
+        vehicleMake: formData.vehicleMake,
+        vehicleModel: formData.vehicleModel,
         password: formData.password,
       });
       
       if (response.success) {
         Alert.alert(
           'Registration Successful! 🎉',
-          `Welcome to Smart Parking, ${formData.firstName}! You can now start booking parking spots.`,
+          `Welcome to Smart Parking, ${formData.firstName}! Your ${formData.vehicleMake} ${formData.vehicleModel} (${formData.licensePlate}) has been registered as your primary vehicle.`,
           [
             {
               text: 'Get Started',
@@ -297,36 +299,88 @@ const Register = ({ navigation }) => {
                 )}
               </View>
 
-              <View style={{ marginBottom: 16 }}>
-                <Text style={globalStyles.inputLabel}>License Plate</Text>
-                <View style={{ position: 'relative' }}>
-                  <TextInput
-                    style={[
-                      globalStyles.input,
-                      errors.licensePlate && { borderColor: colors.error },
-                    ]}
-                    placeholder="CJ01ABC"
-                    placeholderTextColor={colors.textMuted}
-                    value={formData.licensePlate}
-                    onChangeText={(text) => updateFormData('licensePlate', text.toUpperCase())}
-                    autoCapitalize="characters"
-                  />
-                  <Ionicons
-                    name="car-outline"
-                    size={20}
-                    color={colors.textMuted}
-                    style={{
-                      position: 'absolute',
-                      right: 16,
-                      top: 18,
-                    }}
-                  />
+              <View style={[globalStyles.card, { marginBottom: 16 }]}>
+                <Text style={[globalStyles.subheading, { marginBottom: 16 }]}>
+                  🚗 Primary Vehicle Information
+                </Text>
+                
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={globalStyles.inputLabel}>License Plate</Text>
+                  <View style={{ position: 'relative' }}>
+                    <TextInput
+                      style={[
+                        globalStyles.input,
+                        errors.licensePlate && { borderColor: colors.error },
+                      ]}
+                      placeholder="CJ01ABC"
+                      placeholderTextColor={colors.textMuted}
+                      value={formData.licensePlate}
+                      onChangeText={(text) => updateFormData('licensePlate', text.toUpperCase())}
+                      autoCapitalize="characters"
+                    />
+                    <Ionicons
+                      name="car-outline"
+                      size={20}
+                      color={colors.textMuted}
+                      style={{
+                        position: 'absolute',
+                        right: 16,
+                        top: 18,
+                      }}
+                    />
+                  </View>
+                  {errors.licensePlate && (
+                    <Text style={[globalStyles.caption, { color: colors.error, marginTop: 4 }]}>
+                      {errors.licensePlate}
+                    </Text>
+                  )}
                 </View>
-                {errors.licensePlate && (
-                  <Text style={[globalStyles.caption, { color: colors.error, marginTop: 4 }]}>
-                    {errors.licensePlate}
-                  </Text>
-                )}
+
+                <View style={globalStyles.row}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={globalStyles.inputLabel}>Make</Text>
+                    <TextInput
+                      style={[
+                        globalStyles.input,
+                        errors.vehicleMake && { borderColor: colors.error },
+                      ]}
+                      placeholder="Toyota"
+                      placeholderTextColor={colors.textMuted}
+                      value={formData.vehicleMake}
+                      onChangeText={(text) => updateFormData('vehicleMake', text)}
+                      autoCapitalize="words"
+                    />
+                    {errors.vehicleMake && (
+                      <Text style={[globalStyles.caption, { color: colors.error, marginTop: 4 }]}>
+                        {errors.vehicleMake}
+                      </Text>
+                    )}
+                  </View>
+                  
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={globalStyles.inputLabel}>Model</Text>
+                    <TextInput
+                      style={[
+                        globalStyles.input,
+                        errors.vehicleModel && { borderColor: colors.error },
+                      ]}
+                      placeholder="Camry"
+                      placeholderTextColor={colors.textMuted}
+                      value={formData.vehicleModel}
+                      onChangeText={(text) => updateFormData('vehicleModel', text)}
+                      autoCapitalize="words"
+                    />
+                    {errors.vehicleModel && (
+                      <Text style={[globalStyles.caption, { color: colors.error, marginTop: 4 }]}>
+                        {errors.vehicleModel}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                <Text style={[globalStyles.caption, { marginTop: 8, textAlign: 'center' }]}>
+                  This will be set as your primary vehicle for parking reservations
+                </Text>
               </View>
 
               <View style={{ marginBottom: 16 }}>

@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Image,
-} from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Dimensions, FlatList, Image,} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +13,7 @@ const { width } = Dimensions.get('window');
 const Home = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [recentReservations, setRecentReservations] = useState([]);
-  const [activeBookings, setActiveBookings] = useState(0);
+  const [activeBookingsCount, setActiveBookingsCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +21,7 @@ const Home = ({ navigation }) => {
 
   useEffect(() => {
     loadUserData();
-    loadReservationsData();
+    loadRecentReservations();
   }, []);
 
   const loadUserData = async () => {
@@ -45,27 +35,36 @@ const Home = ({ navigation }) => {
     }
   };
 
-  const loadReservationsData = async () => {
+  const getReservationStatus = (reservation) => {
+    if (reservation.status === 'cancelled') return 'cancelled';
+    if (reservation.status === 'completed') return 'completed';
+    
+    const now = new Date();
+    const startTime = new Date(reservation.start_time);
+    const endTime = new Date(reservation.end_time);
+    
+    if (now < startTime) return 'upcoming';
+    if (now >= startTime && now <= endTime) return 'active';
+    return 'expired';
+  };
+
+  const loadRecentReservations = async () => {
     try {
       const reservations = await ParkingAPI.getUserReservations();
       
-      setRecentReservations(reservations.slice(0, 3));
-      
-      const activeBookingsCount = reservations.filter(reservation => {
-        return reservation.status === 'active';
-      }).length;
-      
-      console.log('📊 Active bookings calculation:', {
-        totalReservations: reservations.length,
-        activeBookings: activeBookingsCount,
-        reservationStatuses: reservations.map(r => ({
-          id: r.id,
-          status: r.status,
-          isActive: r.status === 'active'
-        }))
+      const activeReservations = reservations.filter(reservation => {
+        const status = getReservationStatus(reservation);
+        return (status === 'active' || status === 'upcoming') && reservation.status === 'active';
       });
       
-      setActiveBookings(activeBookingsCount);
+      console.log('📊 HOME STATS:', {
+        totalReservations: reservations.length,
+        activeBookings: activeReservations.length,
+        recentShown: reservations.slice(0, 3).length
+      });
+      
+      setActiveBookingsCount(activeReservations.length);
+      setRecentReservations(reservations.slice(0, 3));
     } catch (error) {
       console.error('Failed to load reservations:', error);
     }
@@ -75,7 +74,7 @@ const Home = ({ navigation }) => {
     setIsRefreshing(true);
     await Promise.all([
       loadUserData(),
-      loadReservationsData(),
+      loadRecentReservations(),
       refreshData(),
     ]);
     setIsRefreshing(false);
@@ -277,7 +276,7 @@ const Home = ({ navigation }) => {
           <View style={[globalStyles.row, { justifyContent: 'space-around' }]}>
             <View style={{ alignItems: 'center' }}>
               <Text style={[globalStyles.title, { color: colors.white, fontSize: 18, marginBottom: 0 }]}>
-                {activeBookings}
+                {activeBookingsCount}
               </Text>
               <Text style={[globalStyles.caption, { color: colors.white, opacity: 0.8, fontSize: 12 }]}>
                 Active Bookings

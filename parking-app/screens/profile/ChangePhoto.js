@@ -13,9 +13,7 @@ const ChangePhoto = ({ navigation, route }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [currentPhoto, setCurrentPhoto] = useState(user?.profileImageUrl);
 
-  useEffect(() => {
-    requestPermissions();
-  }, []);
+  useEffect(() => { requestPermissions(); }, []);
 
   const requestPermissions = async () => {
     const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();

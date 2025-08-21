@@ -1,18 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
-  FlatList,
-  Alert,
-  Linking,
-  Platform,
-  ActivityIndicator,
-  Modal,
-  ScrollView,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, TouchableOpacity, TextInput, FlatList, Alert, Linking, Platform, ActivityIndicator, Modal, ScrollView, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { globalStyles } from '../theme/styles';
@@ -82,9 +69,7 @@ const Navigation = ({ navigation, route }) => {
     }
   };
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-  };
+  const handleSearch = (query) => { setSearchQuery(query); };
 
   const filteredLocations = locations.filter(
     location =>
@@ -124,10 +109,7 @@ const Navigation = ({ navigation, route }) => {
       });
   };
 
-  const handleBookSpot = () => {
-    if (!selectedLot) return;
-    setShowBookingModal(true);
-  };
+  const handleBookSpot = () => { if (!selectedLot) return; setShowBookingModal(true); };
 
   const confirmBooking = async (spotId) => {
     try {

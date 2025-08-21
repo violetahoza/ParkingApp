@@ -92,7 +92,16 @@ class ParkingAPI {
   async register(userData) {
     const response = await this.makeRequest('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      body: JSON.stringify({
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        phone: userData.phone,
+        licensePlate: userData.licensePlate,
+        vehicleMake: userData.vehicleMake,
+        vehicleModel: userData.vehicleModel,
+        password: userData.password,
+      }),
     });
 
     if (response.success && response.token) {

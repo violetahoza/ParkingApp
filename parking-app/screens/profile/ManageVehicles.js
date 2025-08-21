@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  Modal,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Modal, TextInput, Alert, ActivityIndicator, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { globalStyles } from '../../theme/styles';
@@ -31,9 +22,7 @@ const ManageVehicles = ({ navigation }) => {
   });
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    loadVehicles();
-  }, []);
+  useEffect(() => { loadVehicles(); }, []);
 
   const loadVehicles = async () => {
     try {
