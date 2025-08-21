@@ -3,16 +3,52 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Database connection
+app.use('/uploads', express.static('uploads'));
+
+const uploadsDir = 'uploads/profiles';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `profile-${req.user.userId}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
 const dbConfig = {
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -25,10 +61,8 @@ const dbConfig = {
 
 const pool = mysql.createPool(dbConfig);
 
-// JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -191,6 +225,362 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Profile update error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Change Password Route
+app.put('/api/profile/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Get current user
+    const [users] = await pool.execute(
+      'SELECT password_hash FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, users[0].password_hash);
+    if (!isValidPassword) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [hashedNewPassword, req.user.userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Profile Photo Routes
+app.post('/api/profile/upload-photo', authenticateToken, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo uploaded' });
+    }
+
+    const photoUrl = `/uploads/profiles/${req.file.filename}`;
+
+    // Get current photo to delete it
+    const [users] = await pool.execute(
+      'SELECT up.profile_image_url FROM user_profiles up WHERE up.user_id = ?',
+      [req.user.userId]
+    );
+
+    const currentPhoto = users[0]?.profile_image_url;
+
+    // Update database
+    await pool.execute(
+      'UPDATE user_profiles SET profile_image_url = ? WHERE user_id = ?',
+      [photoUrl, req.user.userId]
+    );
+
+    // Delete old photo if it exists
+    if (currentPhoto && currentPhoto.startsWith('/uploads/')) {
+      const oldPhotoPath = path.join(__dirname, currentPhoto);
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile photo updated successfully',
+      photoUrl: photoUrl
+    });
+  } catch (error) {
+    console.error('Upload photo error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/profile/remove-photo', authenticateToken, async (req, res) => {
+  try {
+    // Get current photo
+    const [users] = await pool.execute(
+      'SELECT up.profile_image_url FROM user_profiles up WHERE up.user_id = ?',
+      [req.user.userId]
+    );
+
+    const currentPhoto = users[0]?.profile_image_url;
+
+    // Remove from database
+    await pool.execute(
+      'UPDATE user_profiles SET profile_image_url = NULL WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    // Delete file if it exists
+    if (currentPhoto && currentPhoto.startsWith('/uploads/')) {
+      const photoPath = path.join(__dirname, currentPhoto);
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile photo removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove photo error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Vehicle Management Routes
+app.get('/api/vehicles', authenticateToken, async (req, res) => {
+  try {
+    const [vehicles] = await pool.execute(
+      `SELECT id, license_plate, make, model, color, year, is_primary, created_at 
+       FROM user_vehicles 
+       WHERE user_id = ? 
+       ORDER BY is_primary DESC, created_at DESC`,
+      [req.user.userId]
+    );
+
+    res.json({
+      success: true,
+      vehicles
+    });
+  } catch (error) {
+    console.error('Get vehicles error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/vehicles', authenticateToken, async (req, res) => {
+  try {
+    const { licensePlate, make, model, color, year } = req.body;
+
+    // Check if this is the first vehicle (make it primary)
+    const [existingVehicles] = await pool.execute(
+      'SELECT COUNT(*) as count FROM user_vehicles WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    const isPrimary = existingVehicles[0].count === 0;
+
+    await pool.execute(
+      'INSERT INTO user_vehicles (user_id, license_plate, make, model, color, year, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.userId, licensePlate, make, model, color || null, year || null, isPrimary]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Vehicle added successfully'
+    });
+  } catch (error) {
+    console.error('Add vehicle error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/vehicles/:vehicleId', authenticateToken, async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const { licensePlate, make, model, color, year } = req.body;
+
+    // Verify vehicle belongs to user
+    const [vehicles] = await pool.execute(
+      'SELECT id FROM user_vehicles WHERE id = ? AND user_id = ?',
+      [vehicleId, req.user.userId]
+    );
+
+    if (vehicles.length === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    await pool.execute(
+      'UPDATE user_vehicles SET license_plate = ?, make = ?, model = ?, color = ?, year = ? WHERE id = ? AND user_id = ?',
+      [licensePlate, make, model, color || null, year || null, vehicleId, req.user.userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Vehicle updated successfully'
+    });
+  } catch (error) {
+    console.error('Update vehicle error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Set Primary Vehicle Route
+app.put('/api/vehicles/:vehicleId/set-primary', authenticateToken, async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+
+    // Verify vehicle belongs to user
+    const [vehicles] = await pool.execute(
+      'SELECT id FROM user_vehicles WHERE id = ? AND user_id = ?',
+      [vehicleId, req.user.userId]
+    );
+
+    if (vehicles.length === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    // Remove primary status from all user vehicles
+    await pool.execute(
+      'UPDATE user_vehicles SET is_primary = FALSE WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    // Set this vehicle as primary
+    await pool.execute(
+      'UPDATE user_vehicles SET is_primary = TRUE WHERE id = ? AND user_id = ?',
+      [vehicleId, req.user.userId]
+    );
+
+    // Update user profile with primary vehicle license plate
+    const [primaryVehicle] = await pool.execute(
+      'SELECT license_plate FROM user_vehicles WHERE id = ?',
+      [vehicleId]
+    );
+
+    if (primaryVehicle.length > 0) {
+      await pool.execute(
+        'UPDATE user_profiles SET license_plate = ? WHERE user_id = ?',
+        [primaryVehicle[0].license_plate, req.user.userId]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Primary vehicle updated successfully'
+    });
+  } catch (error) {
+    console.error('Set primary vehicle error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/vehicles/:vehicleId', authenticateToken, async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+
+    // Verify vehicle belongs to user and is not primary
+    const [vehicles] = await pool.execute(
+      'SELECT is_primary FROM user_vehicles WHERE id = ? AND user_id = ?',
+      [vehicleId, req.user.userId]
+    );
+
+    if (vehicles.length === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    if (vehicles[0].is_primary) {
+      return res.status(400).json({ error: 'Cannot delete primary vehicle' });
+    }
+
+    await pool.execute(
+      'DELETE FROM user_vehicles WHERE id = ? AND user_id = ?',
+      [vehicleId, req.user.userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Vehicle deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete vehicle error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete Account Route
+app.delete('/api/profile/delete-account', authenticateToken, async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    console.log('Delete account request for user:', req.user.userId);
+
+    // Verify password
+    const [users] = await pool.execute(
+      'SELECT password_hash FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, users[0].password_hash);
+    if (!isValidPassword) {
+      return res.status(400).json({ error: 'Incorrect password' });
+    }
+
+    // Check for active reservations
+    const [activeReservations] = await pool.execute(
+      'SELECT COUNT(*) as count FROM reservations WHERE user_id = ? AND status = ? AND end_time > NOW()',
+      [req.user.userId, 'active']
+    );
+
+    if (activeReservations[0].count > 0) {
+      return res.status(400).json({ error: 'Cannot delete account with active reservations' });
+    }
+
+    // Get profile photo to delete
+    const [profiles] = await pool.execute(
+      'SELECT profile_image_url FROM user_profiles WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    const profilePhoto = profiles[0]?.profile_image_url;
+
+    // Start transaction to ensure data consistency
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Delete in correct order due to foreign key constraints
+      await connection.execute('DELETE FROM reservations WHERE user_id = ?', [req.user.userId]);
+      await connection.execute('DELETE FROM user_vehicles WHERE user_id = ?', [req.user.userId]);
+      await connection.execute('DELETE FROM user_profiles WHERE user_id = ?', [req.user.userId]);
+      await connection.execute('DELETE FROM users WHERE id = ?', [req.user.userId]);
+
+      await connection.commit();
+      connection.release();
+
+      // Delete profile photo if exists
+      if (profilePhoto && profilePhoto.startsWith('/uploads/')) {
+        const photoPath = path.join(__dirname, profilePhoto);
+        if (fs.existsSync(photoPath)) {
+          fs.unlinkSync(photoPath);
+        }
+      }
+
+      console.log('Account deleted successfully for user:', req.user.userId);
+
+      res.json({
+        success: true,
+        message: 'Account deleted successfully'
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Delete account error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -455,6 +845,13 @@ app.get('/api/health', async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
+  
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File too large. Maximum size is 5MB.' });
+    }
+  }
+  
   res.status(500).json({ error: 'Internal server error' });
 });
 

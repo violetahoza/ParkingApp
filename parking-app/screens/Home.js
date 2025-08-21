@@ -1,4 +1,3 @@
-// SmartParkingUI/screens/Home.js - Mobile Optimized Layout
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -77,7 +76,7 @@ const Home = ({ navigation }) => {
         borderRadius: 12,
         padding: 12,
         marginRight: 8,
-        width: (width - 60) / 2, // Two per row with proper spacing
+        width: (width - 60) / 2, 
         alignItems: 'center',
         marginBottom: 8,
       }}
@@ -200,7 +199,6 @@ const Home = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {/* Header */}
         <LinearGradient
           colors={colors.gradientPrimary}
           style={{
@@ -235,7 +233,6 @@ const Home = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Stats */}
           <View style={[globalStyles.row, { justifyContent: 'space-around' }]}>
             <View style={{ alignItems: 'center' }}>
               <Text style={[globalStyles.title, { color: colors.white, fontSize: 18, marginBottom: 0 }]}>
@@ -256,7 +253,6 @@ const Home = ({ navigation }) => {
           </View>
         </LinearGradient>
 
-        {/* Quick Actions */}
         <View style={{ padding: 20 }}>
           <Text style={[globalStyles.heading, { marginBottom: 12, fontSize: 18 }]}>
             Quick Actions
@@ -270,7 +266,6 @@ const Home = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Nearby Parking */}
         <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           <View style={[globalStyles.spaceBetween, { marginBottom: 12 }]}>
             <Text style={[globalStyles.heading, { fontSize: 18 }]}>Nearby Parking</Text>
@@ -298,7 +293,6 @@ const Home = ({ navigation }) => {
           )}
         </View>
 
-        {/* Recent Reservations */}
         <View style={{ paddingHorizontal: 20 }}>
           <View style={[globalStyles.spaceBetween, { marginBottom: 12 }]}>
             <Text style={[globalStyles.heading, { fontSize: 18 }]}>Recent Bookings</Text>

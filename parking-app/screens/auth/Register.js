@@ -108,7 +108,6 @@ const Register = ({ navigation }) => {
             {
               text: 'Get Started',
               onPress: () => {
-                // Trigger auth refresh
                 if (global.refreshAuth) {
                   setTimeout(() => global.refreshAuth(), 100);
                 }
@@ -121,7 +120,6 @@ const Register = ({ navigation }) => {
     } catch (error) {
       console.error('Registration error:', error);
       
-      // Show specific error message
       let errorMessage = 'Registration failed. Please try again.';
       
       if (error.message.includes('User already exists')) {
@@ -174,7 +172,6 @@ const Register = ({ navigation }) => {
             style={{ flex: 1, minHeight: '100%' }}
           >
             <View style={[globalStyles.padding, { paddingTop: 40 }]}>
-              {/* Header */}
               <View style={globalStyles.center}>
                 <TouchableOpacity
                   style={{
@@ -192,7 +189,6 @@ const Register = ({ navigation }) => {
                 <Text style={globalStyles.subtitle}>Join Smart Parking today</Text>
               </View>
 
-              {/* Name Inputs */}
               <View style={globalStyles.row}>
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={globalStyles.inputLabel}>First Name</Text>
@@ -235,7 +231,6 @@ const Register = ({ navigation }) => {
                 </View>
               </View>
 
-              {/* Email Input */}
               <View style={{ marginBottom: 16 }}>
                 <Text style={globalStyles.inputLabel}>Email Address</Text>
                 <View style={{ position: 'relative' }}>
@@ -270,7 +265,6 @@ const Register = ({ navigation }) => {
                 )}
               </View>
 
-              {/* Phone Input */}
               <View style={{ marginBottom: 16 }}>
                 <Text style={globalStyles.inputLabel}>Phone Number</Text>
                 <View style={{ position: 'relative' }}>
@@ -303,7 +297,6 @@ const Register = ({ navigation }) => {
                 )}
               </View>
 
-              {/* License Plate Input */}
               <View style={{ marginBottom: 16 }}>
                 <Text style={globalStyles.inputLabel}>License Plate</Text>
                 <View style={{ position: 'relative' }}>
@@ -336,7 +329,6 @@ const Register = ({ navigation }) => {
                 )}
               </View>
 
-              {/* Password Input */}
               <View style={{ marginBottom: 16 }}>
                 <Text style={globalStyles.inputLabel}>Password</Text>
                 <View style={{ position: 'relative' }}>
@@ -374,7 +366,6 @@ const Register = ({ navigation }) => {
                 )}
               </View>
 
-              {/* Confirm Password Input */}
               <View style={{ marginBottom: 32 }}>
                 <Text style={globalStyles.inputLabel}>Confirm Password</Text>
                 <View style={{ position: 'relative' }}>
@@ -411,7 +402,6 @@ const Register = ({ navigation }) => {
                 )}
               </View>
 
-              {/* Register Button */}
               <TouchableOpacity
                 style={[
                   globalStyles.button,
@@ -427,7 +417,6 @@ const Register = ({ navigation }) => {
                 )}
               </TouchableOpacity>
 
-              {/* Login Link */}
               <View style={[globalStyles.row, { justifyContent: 'center', marginTop: 24 }]}>
                 <Text style={globalStyles.bodyText}>Already have an account? </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('Login')}>

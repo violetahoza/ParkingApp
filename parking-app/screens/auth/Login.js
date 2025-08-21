@@ -55,7 +55,6 @@ const Login = ({ navigation }) => {
       
       if (response.success) {
         console.log('✅ Login successful:', response.user);
-        // Trigger auth refresh
         if (global.refreshAuth) {
           setTimeout(() => global.refreshAuth(), 100);
         }
@@ -92,7 +91,6 @@ const Login = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={{ paddingTop: 60 }}>
-            {/* Header */}
             <View style={[globalStyles.center, { marginBottom: 40 }]}>
               <View style={{
                 width: 80,
@@ -132,7 +130,6 @@ const Login = ({ navigation }) => {
               </Text>
             </TouchableOpacity> */}
 
-            {/* Email Input */}
             <View style={{ marginBottom: 16 }}>
               <Text style={globalStyles.inputLabel}>Email Address</Text>
               <View style={{ position: 'relative' }}>
@@ -172,7 +169,6 @@ const Login = ({ navigation }) => {
               )}
             </View>
 
-            {/* Password Input */}
             <View style={{ marginBottom: 24 }}>
               <Text style={globalStyles.inputLabel}>Password</Text>
               <View style={{ position: 'relative' }}>
@@ -215,7 +211,6 @@ const Login = ({ navigation }) => {
               )}
             </View>
 
-            {/* Forgot Password */}
             <TouchableOpacity
               style={{ alignSelf: 'flex-end', marginBottom: 32 }}
               onPress={handleForgotPassword}
@@ -225,7 +220,6 @@ const Login = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
 
-            {/* Login Button */}
             <TouchableOpacity
               style={[
                 globalStyles.button,
@@ -241,7 +235,6 @@ const Login = ({ navigation }) => {
               )}
             </TouchableOpacity>
 
-            {/* Register Link */}
             <View style={[globalStyles.row, { justifyContent: 'center', marginTop: 24 }]}>
               <Text style={globalStyles.bodyText}>Don't have an account? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Register')}>

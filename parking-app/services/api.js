@@ -13,7 +13,6 @@ class ParkingAPI {
     console.log(`🌐 ParkingAPI initialized for ${Platform.OS} with baseURL: ${this.baseURL}`);
   }
 
-  // Initialize token from storage
   async init() {
     try {
       this.token = await AsyncStorage.getItem('authToken');
@@ -23,7 +22,6 @@ class ParkingAPI {
     }
   }
 
-  // Set authentication token
   async setAuthToken(token) {
     this.token = token;
     if (token) {
@@ -34,13 +32,11 @@ class ParkingAPI {
       console.log('🗑️ Auth token removed');
     }
     
-    // Trigger auth status refresh if available
     if (this.refreshAuthStatus) {
       setTimeout(() => this.refreshAuthStatus(), 100);
     }
   }
 
-  // Get authentication headers
   getAuthHeaders() {
     const headers = {
       'Content-Type': 'application/json',
@@ -53,7 +49,6 @@ class ParkingAPI {
     return headers;
   }
 
-  // Make API request
   async makeRequest(endpoint, options = {}) {
     try {
       const url = `${this.baseURL}${endpoint}`;
@@ -80,13 +75,11 @@ class ParkingAPI {
     } catch (error) {
       console.error(`❌ API Error (${endpoint}):`, error.message);
       
-      // Check if it's an authentication error
       if (error.message.includes('401') || error.message.includes('403')) {
         await this.logout();
         throw new Error('Authentication required');
       }
       
-      // Check if it's a network error
       if (error.message.includes('Network request failed') || error.message.includes('fetch')) {
         throw new Error(`Network error - Please check if the backend server is running on ${this.baseURL}`);
       }
@@ -146,6 +139,90 @@ class ParkingAPI {
     const response = await this.makeRequest('/profile', {
       method: 'PUT',
       body: JSON.stringify(profileData),
+    });
+    return response;
+  }
+
+  async changePassword(passwordData) {
+    const response = await this.makeRequest('/profile/change-password', {
+      method: 'PUT',
+      body: JSON.stringify(passwordData),
+    });
+    return response;
+  }
+
+  async uploadProfilePhoto(formData) {
+    const url = `${this.baseURL}/profile/upload-photo`;
+    const config = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+      },
+      body: formData,
+    };
+
+    console.log(`🌐 API Request: POST ${url}`);
+
+    const response = await fetch(url, config);
+    const data = await response.json();
+
+    console.log(`📡 API Response (${response.status}):`, data);
+
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return data;
+  }
+
+  async removeProfilePhoto() {
+    const response = await this.makeRequest('/profile/remove-photo', {
+      method: 'DELETE',
+    });
+    return response;
+  }
+
+  // Vehicle Management endpoints
+  async getUserVehicles() {
+    const response = await this.makeRequest('/vehicles');
+    return response.vehicles;
+  }
+
+  async addVehicle(vehicleData) {
+    const response = await this.makeRequest('/vehicles', {
+      method: 'POST',
+      body: JSON.stringify(vehicleData),
+    });
+    return response;
+  }
+
+  async updateVehicle(vehicleId, vehicleData) {
+    const response = await this.makeRequest(`/vehicles/${vehicleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(vehicleData),
+    });
+    return response;
+  }
+
+  async deleteVehicle(vehicleId) {
+    const response = await this.makeRequest(`/vehicles/${vehicleId}`, {
+      method: 'DELETE',
+    });
+    return response;
+  }
+
+  async setPrimaryVehicle(vehicleId) {
+    const response = await this.makeRequest(`/vehicles/${vehicleId}/set-primary`, {
+      method: 'PUT',
+    });
+    return response;
+  }
+
+  // Delete Account
+  async deleteAccount(password) {
+    const response = await this.makeRequest('/profile/delete-account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
     });
     return response;
   }
@@ -211,7 +288,6 @@ class ParkingAPI {
 
   // Mock methods for features not yet implemented
   async getFavorites() {
-    // Mock data for now - implement this when you add favorites feature
     return [];
   }
 

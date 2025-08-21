@@ -1,13 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Switch,
-  ActivityIndicator,
-} from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Switch, ActivityIndicator, Image, } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +7,7 @@ import { globalStyles } from '../../theme/styles';
 import { colors } from '../../theme/colors';
 import ParkingAPI from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 const Profile = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -31,8 +24,13 @@ const Profile = ({ navigation }) => {
     darkMode: true,
   });
 
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+    }, [])
+  );
+
   useEffect(() => {
-    loadUserData();
     loadSettings();
   }, []);
 
@@ -40,24 +38,24 @@ const Profile = ({ navigation }) => {
     try {
       setLoading(true);
       
-      // Get current user
       const currentUser = await ParkingAPI.getCurrentUser();
       if (currentUser) {
         setUser(currentUser);
         
-        // Get user reservations to calculate stats
-        const reservations = await ParkingAPI.getUserReservations();
-        const favorites = await ParkingAPI.getFavorites();
+        const [reservations, favorites, vehicles] = await Promise.all([
+          ParkingAPI.getUserReservations(),
+          ParkingAPI.getFavorites(),
+          ParkingAPI.getUserVehicles()
+        ]);
         
         setStats({
           totalReservations: reservations.length,
           favoriteSpots: favorites.length,
-          vehicles: 1, // You can implement vehicles API later
+          vehicles: vehicles.length,
         });
       }
     } catch (error) {
       console.error('❌ Failed to load user data:', error);
-      // Don't try to navigate - let App.js handle auth state
     } finally {
       setLoading(false);
     }
@@ -95,7 +93,6 @@ const Profile = ({ navigation }) => {
           onPress: async () => {
             try {
               await ParkingAPI.logout();
-              // Trigger auth refresh
               if (global.refreshAuth) {
                 setTimeout(() => global.refreshAuth(), 100);
               }
@@ -138,11 +135,29 @@ const Profile = ({ navigation }) => {
 
   const renderMenuOption = (title, subtitle, icon, onPress, rightComponent) => (
     <TouchableOpacity
-      style={[globalStyles.cardSmall, { marginBottom: 8 }]}
+      style={[
+        globalStyles.cardSmall, 
+        { 
+          marginBottom: 8,
+          marginHorizontal: 0,
+          paddingHorizontal: 16, 
+        }
+      ]}
       onPress={onPress}
     >
-      <View style={globalStyles.spaceBetween}>
-        <View style={globalStyles.row}>
+      <View style={[
+        globalStyles.spaceBetween,
+        {
+          alignItems: 'center', 
+        }
+      ]}>
+        <View style={[
+          globalStyles.row,
+          {
+            flex: 1,
+            alignItems: 'center',
+          }
+        ]}>
           <View style={{
             width: 40,
             height: 40,
@@ -155,15 +170,17 @@ const Profile = ({ navigation }) => {
             <Ionicons name={icon} size={20} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={globalStyles.subheading}>{title}</Text>
+            <Text style={[globalStyles.subheading, { fontSize: 16 }]}>{title}</Text>
             {subtitle && (
-              <Text style={globalStyles.caption}>{subtitle}</Text>
+              <Text style={[globalStyles.caption, { fontSize: 13, marginTop: 2 }]}>{subtitle}</Text>
             )}
           </View>
         </View>
-        {rightComponent || (
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-        )}
+        <View style={{ marginLeft: 8 }}>
+          {rightComponent || (
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -179,6 +196,7 @@ const Profile = ({ navigation }) => {
         onValueChange={(value) => updateSetting(settingKey, value)}
         trackColor={{ false: colors.surface, true: colors.primary + '40' }}
         thumbColor={settings[settingKey] ? colors.primary : colors.textMuted}
+        style={{ transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] }} // Slightly smaller switch
       />
     )
   );
@@ -197,7 +215,6 @@ const Profile = ({ navigation }) => {
   return (
     <SafeAreaView style={globalStyles.container}>
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <LinearGradient
           colors={colors.gradientPrimary}
           style={{
@@ -217,25 +234,39 @@ const Profile = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* User Info */}
           <View style={[globalStyles.center, { marginTop: 20 }]}>
-            <View style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}>
-              <Text style={{
-                fontSize: 32,
-                fontWeight: 'bold',
-                color: colors.white,
-              }}>
-                {user?.firstName?.charAt(0) || 'U'}{user?.lastName?.charAt(0) || ''}
-              </Text>
-            </View>
+            <TouchableOpacity 
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginBottom: 16,
+              }}
+              onPress={() => navigation.navigate('EditProfile', { user })}
+            >
+              {user?.profileImageUrl ? (
+                <Image
+                  source={{ uri: user.profileImageUrl.startsWith('http') ? user.profileImageUrl : `http://192.168.100.20:3000${user.profileImageUrl}` }}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 40,
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{
+                  fontSize: 32,
+                  fontWeight: 'bold',
+                  color: colors.white,
+                }}>
+                  {user?.firstName?.charAt(0) || 'U'}{user?.lastName?.charAt(0) || ''}
+                </Text>
+              )}
+            </TouchableOpacity>
             
             <Text style={[globalStyles.heading, { color: colors.white, marginBottom: 4 }]}>
               {user?.firstName} {user?.lastName}
@@ -260,14 +291,12 @@ const Profile = ({ navigation }) => {
           </View>
         </LinearGradient>
 
-        {/* Stats */}
         <View style={[globalStyles.row, { padding: 20 }]}>
           {renderStatCard('Reservations', stats.totalReservations, 'bookmark', colors.primary)}
           {renderStatCard('Favorites', stats.favoriteSpots, 'heart', colors.secondary)}
           {renderStatCard('Vehicles', stats.vehicles, 'car', colors.info)}
         </View>
 
-        {/* Menu Options */}
         <View style={{ paddingHorizontal: 20 }}>
           <Text style={[globalStyles.heading, { marginBottom: 16 }]}>Account</Text>
           
@@ -296,7 +325,7 @@ const Profile = ({ navigation }) => {
             'Vehicle Information',
             'Manage your registered vehicles',
             'car-outline',
-            () => Alert.alert('Coming Soon', 'Vehicle management will be available soon!')
+            () => navigation.navigate('ManageVehicles')
           )}
 
           <Text style={[globalStyles.heading, { marginTop: 24, marginBottom: 16 }]}>Settings</Text>
@@ -342,7 +371,6 @@ const Profile = ({ navigation }) => {
             () => Alert.alert('Smart Parking', 'Version 1.0.0\n\nBuilt with React Native and Expo')
           )}
 
-          {/* Logout Button */}
           <TouchableOpacity
             style={[
               globalStyles.button,

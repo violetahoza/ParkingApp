@@ -86,7 +86,6 @@ const Navigation = ({ navigation, route }) => {
         if (supported) {
           return Linking.openURL(url);
         } else {
-          // Fallback to Google Maps web
           const webUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
           return Linking.openURL(webUrl);
         }
@@ -135,7 +134,6 @@ const Navigation = ({ navigation, route }) => {
           ]
         );
         
-        // Refresh data
         refreshData();
         loadParkingSpots(selectedLot.id);
       }
@@ -254,7 +252,6 @@ const Navigation = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={globalStyles.container}>
-      {/* Header */}
       <View style={globalStyles.header}>
         <View style={globalStyles.spaceBetween}>
           <Text style={globalStyles.headerTitle}>Find Parking</Text>
@@ -264,7 +261,6 @@ const Navigation = ({ navigation, route }) => {
         </View>
       </View>
 
-      {/* Search */}
       <View style={globalStyles.paddingHorizontal}>
         <View style={{ position: 'relative', marginBottom: 16 }}>
           <TextInput
@@ -286,7 +282,6 @@ const Navigation = ({ navigation, route }) => {
           />
         </View>
 
-        {/* Current Location */}
         <View style={[globalStyles.row, { marginBottom: 16 }]}>
           <Ionicons name="location" size={20} color={colors.primary} />
           <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1 }]}>
@@ -295,7 +290,6 @@ const Navigation = ({ navigation, route }) => {
         </View>
       </View>
 
-      {/* Results */}
       {loading ? (
         <View style={globalStyles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -322,7 +316,6 @@ const Navigation = ({ navigation, route }) => {
         />
       )}
 
-      {/* Booking Modal */}
       <Modal
         visible={showBookingModal}
         animationType="slide"

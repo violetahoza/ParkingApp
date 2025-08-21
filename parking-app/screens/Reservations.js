@@ -282,7 +282,6 @@ const Reservations = ({ navigation }) => {
         ListEmptyComponent={renderEmptyState}
       />
 
-      {/* Detail Modal */}
       <Modal
         visible={showDetailModal}
         animationType="slide"
@@ -357,13 +356,11 @@ const Reservations = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Action Buttons */}
                 <View style={[globalStyles.row, { marginTop: 20 }]}>
                   <TouchableOpacity
                     style={[globalStyles.buttonSecondary, { flex: 1, marginRight: 8 }]}
                     onPress={() => {
                       setShowDetailModal(false);
-                      // Navigate to maps
                       const { latitude, longitude } = selectedReservation;
                       const url = Platform.select({
                         ios: `maps:0,0?q=${selectedReservation.parking_lot_name}@${latitude},${longitude}`,

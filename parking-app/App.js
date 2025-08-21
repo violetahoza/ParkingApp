@@ -1,4 +1,3 @@
-// SmartParkingUI/App.js - Fixed version with your colors
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator } from 'react-native';
@@ -9,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from './theme/colors';
 import { globalStyles } from './theme/styles';
 
-// Import screens
 import Login from './screens/auth/Login';
 import Register from './screens/auth/Register';
 import Home from './screens/Home';
@@ -17,8 +15,11 @@ import Navigation from './screens/Navigation';
 import Reservations from './screens/Reservations';
 import Profile from './screens/profile/Profile';
 import EditProfile from './screens/profile/EditProfile';
+import ChangePassword from './screens/profile/ChangePassword';
+import ManageVehicles from './screens/profile/ManageVehicles';
+import DeleteAccount from './screens/profile/DeleteAccount';
+import ChangePhoto from './screens/profile/ChangePhoto';
 
-// Import API service
 import ParkingAPI from './services/api';
 
 const Stack = createStackNavigator();
@@ -52,7 +53,7 @@ const MainTabs = () => {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarShowLabel: false, // This fixes the "medium" property error
+        tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.surfaceLight,
@@ -94,6 +95,10 @@ const MainStack = () => {
     >
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="EditProfile" component={EditProfile} />
+      <Stack.Screen name="ChangePassword" component={ChangePassword} />
+      <Stack.Screen name="ManageVehicles" component={ManageVehicles} />
+      <Stack.Screen name="DeleteAccount" component={DeleteAccount} />
+      <Stack.Screen name="ChangePhoto" component={ChangePhoto} />
     </Stack.Navigator>
   );
 };
@@ -110,14 +115,12 @@ export default function App() {
     try {
       setIsLoading(true);
       
-      // Initialize API and check if user is authenticated
       await ParkingAPI.init();
       const authenticated = await ParkingAPI.isAuthenticated();
       
       console.log('🔍 Auth check result:', authenticated);
       
       if (authenticated) {
-        // Try to get current user to verify token is valid
         try {
           const user = await ParkingAPI.getCurrentUser();
           console.log('✅ User authenticated:', user?.firstName);
@@ -139,7 +142,6 @@ export default function App() {
     }
   };
 
-  // Create a simple refresh function for login/logout
   global.refreshAuth = checkAuthStatus;
 
   if (isLoading) {

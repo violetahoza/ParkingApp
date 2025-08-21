@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,7 +27,6 @@ const EditProfile = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    // Check if there are any changes
     const changes = 
       formData.firstName !== originalData.firstName ||
       formData.lastName !== originalData.lastName ||
@@ -51,7 +41,6 @@ const EditProfile = ({ navigation, route }) => {
     try {
       setLoadingProfile(true);
       
-      // Try to get user from route params first, then from API
       let userData = route.params?.user;
       
       if (!userData) {
@@ -142,7 +131,9 @@ const EditProfile = ({ navigation, route }) => {
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack(),
+            onPress: () => {
+              navigation.goBack();
+            },
           },
         ]
       );
@@ -198,7 +189,6 @@ const EditProfile = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {/* Header */}
         <View style={globalStyles.header}>
           <View style={globalStyles.spaceBetween}>
             <TouchableOpacity onPress={handleDiscard}>
@@ -231,25 +221,60 @@ const EditProfile = ({ navigation, route }) => {
           contentContainerStyle={{ padding: 20 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Profile Picture */}
           <View style={[globalStyles.center, { marginBottom: 32 }]}>
-            <View style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              backgroundColor: colors.primary,
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}>
-              <Text style={{
-                fontSize: 36,
-                fontWeight: 'bold',
-                color: colors.white,
+            <TouchableOpacity 
+              style={{
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+                backgroundColor: colors.primary,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginBottom: 16,
+                position: 'relative',
+              }}
+              onPress={() => navigation.navigate('ChangePhoto', { user: { ...originalData, ...formData } })}
+            >
+              {(originalData.profileImageUrl || formData.profileImageUrl) ? (
+                <Image
+                  source={{ 
+                    uri: (originalData.profileImageUrl || formData.profileImageUrl).startsWith('http') 
+                      ? (originalData.profileImageUrl || formData.profileImageUrl)
+                      : `http://192.168.100.20:3000${originalData.profileImageUrl || formData.profileImageUrl}`
+                  }}
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 50,
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{
+                  fontSize: 36,
+                  fontWeight: 'bold',
+                  color: colors.white,
+                }}>
+                  {formData.firstName?.charAt(0) || 'U'}{formData.lastName?.charAt(0) || ''}
+                </Text>
+              )}
+              
+              <View style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: colors.primary,
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 2,
+                borderColor: colors.background,
               }}>
-                {formData.firstName?.charAt(0) || 'U'}{formData.lastName?.charAt(0) || ''}
-              </Text>
-            </View>
+                <Ionicons name="camera" size={16} color={colors.white} />
+              </View>
+            </TouchableOpacity>
             
             <TouchableOpacity
               style={{
@@ -260,7 +285,7 @@ const EditProfile = ({ navigation, route }) => {
                 borderWidth: 1,
                 borderColor: colors.primary,
               }}
-              onPress={() => Alert.alert('Coming Soon', 'Photo upload will be available soon!')}
+              onPress={() => navigation.navigate('ChangePhoto', { user: { ...originalData, ...formData } })}
             >
               <Text style={[globalStyles.caption, { color: colors.primary }]}>
                 Change Photo
@@ -268,7 +293,6 @@ const EditProfile = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Name Fields */}
           <View style={globalStyles.row}>
             <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={globalStyles.inputLabel}>First Name</Text>
@@ -311,7 +335,6 @@ const EditProfile = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Email Input */}
           <View style={{ marginBottom: 16 }}>
             <Text style={globalStyles.inputLabel}>Email Address</Text>
             <View style={{ position: 'relative' }}>
@@ -343,7 +366,6 @@ const EditProfile = ({ navigation, route }) => {
             </Text>
           </View>
 
-          {/* Phone Input */}
           <View style={{ marginBottom: 16 }}>
             <Text style={globalStyles.inputLabel}>Phone Number</Text>
             <View style={{ position: 'relative' }}>
@@ -376,7 +398,6 @@ const EditProfile = ({ navigation, route }) => {
             )}
           </View>
 
-          {/* License Plate Input */}
           <View style={{ marginBottom: 32 }}>
             <Text style={globalStyles.inputLabel}>License Plate</Text>
             <View style={{ position: 'relative' }}>
@@ -409,7 +430,6 @@ const EditProfile = ({ navigation, route }) => {
             )}
           </View>
 
-          {/* Additional Options */}
           <View style={globalStyles.card}>
             <Text style={[globalStyles.subheading, { marginBottom: 16 }]}>
               Additional Options
@@ -417,7 +437,7 @@ const EditProfile = ({ navigation, route }) => {
             
             <TouchableOpacity
               style={[globalStyles.row, { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.surfaceLight }]}
-              onPress={() => Alert.alert('Coming Soon', 'Password change will be available soon!')}
+              onPress={() => navigation.navigate('ChangePassword')}
             >
               <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} />
               <View style={{ marginLeft: 12, flex: 1 }}>
@@ -429,7 +449,7 @@ const EditProfile = ({ navigation, route }) => {
             
             <TouchableOpacity
               style={[globalStyles.row, { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.surfaceLight }]}
-              onPress={() => Alert.alert('Coming Soon', 'Vehicle management will be available soon!')}
+              onPress={() => navigation.navigate('ManageVehicles')}
             >
               <Ionicons name="car-outline" size={20} color={colors.textMuted} />
               <View style={{ marginLeft: 12, flex: 1 }}>
@@ -441,7 +461,7 @@ const EditProfile = ({ navigation, route }) => {
             
             <TouchableOpacity
               style={[globalStyles.row, { paddingVertical: 12 }]}
-              onPress={() => Alert.alert('Coming Soon', 'Account deletion will be available soon!')}
+              onPress={() => navigation.navigate('DeleteAccount')}
             >
               <Ionicons name="trash-outline" size={20} color={colors.error} />
               <View style={{ marginLeft: 12, flex: 1 }}>
@@ -452,7 +472,6 @@ const EditProfile = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Save Button */}
           <TouchableOpacity
             style={[
               globalStyles.button,
