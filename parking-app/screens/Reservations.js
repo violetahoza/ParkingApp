@@ -140,19 +140,18 @@ const Reservations = ({ navigation }) => {
     }
   };
 
-  // Fixed time formatting for Romanian timezone
   const formatTime = (dateString) => {
     try {
       const date = new Date(dateString);
-      console.log('🕐 FORMATTING TIME:', {
-        input: dateString,
-        parsed_date: date.toISOString(),
-        formatted: date.toLocaleTimeString('ro-RO', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        })
-      });
+      // console.log('🕐 FORMATTING TIME:', {
+      //   input: dateString,
+      //   parsed_date: date.toISOString(),
+      //   formatted: date.toLocaleTimeString('ro-RO', {
+      //     hour: '2-digit',
+      //     minute: '2-digit',
+      //     hour12: false
+      //   })
+      // });
       
       return date.toLocaleTimeString('ro-RO', {
         hour: '2-digit',
