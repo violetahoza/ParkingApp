@@ -276,21 +276,6 @@ const EditProfile = ({ navigation, route }) => {
               </View>
             </TouchableOpacity>
             
-            <TouchableOpacity
-              style={{
-                backgroundColor: colors.surface,
-                borderRadius: 8,
-                paddingVertical: 8,
-                paddingHorizontal: 16,
-                borderWidth: 1,
-                borderColor: colors.primary,
-              }}
-              onPress={() => navigation.navigate('ChangePhoto', { user: { ...originalData, ...formData } })}
-            >
-              <Text style={[globalStyles.caption, { color: colors.primary }]}>
-                Change Photo
-              </Text>
-            </TouchableOpacity>
           </View>
 
           <View style={globalStyles.row}>

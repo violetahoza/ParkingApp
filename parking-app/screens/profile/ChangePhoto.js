@@ -181,7 +181,7 @@ const ChangePhoto = ({ navigation, route }) => {
       </View>
 
       <View style={[globalStyles.center, { flex: 0, padding: 10 }]}>
-        <View style={{ marginBottom: 20 }}>
+        <View style={{ marginBottom: 20, alignItems: 'center' }}>
           <View style={{
             width: 200,
             height: 200,
