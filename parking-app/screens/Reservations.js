@@ -20,7 +20,7 @@ import { useReservations } from '../hooks/useRealTimeData';
 import ParkingAPI from '../services/api';
 
 const Reservations = ({ navigation }) => {
-  const [selectedTab, setSelectedTab] = useState('active'); // active, completed, cancelled
+  const [selectedTab, setSelectedTab] = useState('active');
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -43,11 +43,12 @@ const Reservations = ({ navigation }) => {
 
   const getFilteredReservations = () => {
     return reservations.filter(reservation => {
+      const status = getReservationStatus(reservation);
       switch (selectedTab) {
         case 'active':
-          return reservation.status === 'active';
+          return status === 'active' || status === 'upcoming';
         case 'completed':
-          return reservation.status === 'completed';
+          return status === 'completed' || status === 'expired';
         case 'cancelled':
           return reservation.status === 'cancelled';
         default:
@@ -83,15 +84,42 @@ const Reservations = ({ navigation }) => {
   };
 
   const getReservationStatus = (reservation) => {
+    console.log('🎯 RESERVATION STATUS: Checking reservation:', {
+      id: reservation.id,
+      status: reservation.status,
+      start_time: reservation.start_time,
+      end_time: reservation.end_time,
+      current_time: new Date().toISOString()
+    });
+
     if (reservation.status === 'cancelled') return 'cancelled';
     if (reservation.status === 'completed') return 'completed';
     
     const now = new Date();
+    
+    // Parse MySQL datetime strings (assume they are in local timezone)
     const startTime = new Date(reservation.start_time);
     const endTime = new Date(reservation.end_time);
     
-    if (now < startTime) return 'upcoming';
-    if (now >= startTime && now <= endTime) return 'active';
+    console.log('🎯 RESERVATION STATUS: Parsed times:', {
+      now: now.toISOString(),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      now_timestamp: now.getTime(),
+      start_timestamp: startTime.getTime(),
+      end_timestamp: endTime.getTime()
+    });
+    
+    if (now < startTime) {
+      console.log('🎯 RESERVATION STATUS: Upcoming (now < startTime)');
+      return 'upcoming';
+    }
+    if (now >= startTime && now <= endTime) {
+      console.log('🎯 RESERVATION STATUS: Active (now between start and end)');
+      return 'active';
+    }
+    
+    console.log('🎯 RESERVATION STATUS: Expired (now > endTime)');
     return 'expired';
   };
 
@@ -109,6 +137,45 @@ const Reservations = ({ navigation }) => {
         return { backgroundColor: colors.textMuted, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12 };
       default:
         return globalStyles.statusReserved;
+    }
+  };
+
+  // Fixed time formatting for Romanian timezone
+  const formatTime = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      console.log('🕐 FORMATTING TIME:', {
+        input: dateString,
+        parsed_date: date.toISOString(),
+        formatted: date.toLocaleTimeString('ro-RO', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        })
+      });
+      
+      return date.toLocaleTimeString('ro-RO', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false // Use 24-hour format
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return dateString;
+    }
+  };
+
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ro-RO', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateString;
     }
   };
 
@@ -138,7 +205,14 @@ const Reservations = ({ navigation }) => {
 
   const renderReservation = ({ item }) => {
     const status = getReservationStatus(item);
-    const canCancel = status === 'upcoming' || status === 'active';
+    const canCancel = (status === 'upcoming' || status === 'active') && item.status === 'active';
+
+    console.log('🎯 RENDER RESERVATION:', {
+      id: item.id,
+      calculated_status: status,
+      db_status: item.status,
+      canCancel
+    });
 
     return (
       <TouchableOpacity
@@ -161,14 +235,14 @@ const Reservations = ({ navigation }) => {
             <View style={[globalStyles.row, { marginBottom: 8 }]}>
               <Ionicons name="time-outline" size={16} color={colors.textMuted} />
               <Text style={[globalStyles.caption, { marginLeft: 4 }]}>
-                {ParkingAPI.formatDate(item.start_time)} at {ParkingAPI.formatTime(item.start_time)}
+                {formatDate(item.start_time)} la {formatTime(item.start_time)}
               </Text>
             </View>
             
             <View style={globalStyles.row}>
               <Ionicons name="card-outline" size={16} color={colors.textMuted} />
               <Text style={[globalStyles.caption, { marginLeft: 4 }]}>
-                ${item.total_cost}
+                RON{item.total_cost}
               </Text>
             </View>
           </View>
@@ -176,7 +250,11 @@ const Reservations = ({ navigation }) => {
           <View style={{ alignItems: 'flex-end' }}>
             <View style={getStatusStyle(status)}>
               <Text style={globalStyles.statusText}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'upcoming' ? 'Upcoming' :
+                 status === 'active' ? 'Active' :
+                 status === 'expired' ? 'Expired' :
+                 status === 'cancelled' ? 'Cancelled' :
+                 status === 'completed' ? 'Completed' : status}
               </Text>
             </View>
             
@@ -282,6 +360,7 @@ const Reservations = ({ navigation }) => {
         ListEmptyComponent={renderEmptyState}
       />
 
+      {/* Detail Modal with fixed times */}
       <Modal
         visible={showDetailModal}
         animationType="slide"
@@ -319,8 +398,14 @@ const Reservations = ({ navigation }) => {
                   <View style={[globalStyles.row, { marginBottom: 12 }]}>
                     <View style={getStatusStyle(getReservationStatus(selectedReservation))}>
                       <Text style={globalStyles.statusText}>
-                        {getReservationStatus(selectedReservation).charAt(0).toUpperCase() + 
-                         getReservationStatus(selectedReservation).slice(1)}
+                        {(() => {
+                          const status = getReservationStatus(selectedReservation);
+                          return status === 'upcoming' ? 'Upcoming' :
+                                 status === 'active' ? 'Active' :
+                                 status === 'expired' ? 'Expired' :
+                                 status === 'cancelled' ? 'Cancelled' :
+                                 status === 'completed' ? 'Completed' : status;
+                        })()}
                       </Text>
                     </View>
                   </View>
@@ -336,21 +421,21 @@ const Reservations = ({ navigation }) => {
                     <View style={[globalStyles.row, { marginBottom: 8 }]}>
                       <Ionicons name="time-outline" size={20} color={colors.textMuted} />
                       <Text style={[globalStyles.bodyText, { marginLeft: 8 }]}>
-                        {ParkingAPI.formatDate(selectedReservation.start_time)} at {ParkingAPI.formatTime(selectedReservation.start_time)}
+                        {formatDate(selectedReservation.start_time)} la {formatTime(selectedReservation.start_time)}
                       </Text>
                     </View>
                     
                     <View style={[globalStyles.row, { marginBottom: 8 }]}>
                       <Ionicons name="timer-outline" size={20} color={colors.textMuted} />
                       <Text style={[globalStyles.bodyText, { marginLeft: 8 }]}>
-                        Until {ParkingAPI.formatTime(selectedReservation.end_time)}
+                        Până la {formatTime(selectedReservation.end_time)}
                       </Text>
                     </View>
                     
                     <View style={globalStyles.row}>
                       <Ionicons name="card-outline" size={20} color={colors.textMuted} />
                       <Text style={[globalStyles.bodyText, { marginLeft: 8 }]}>
-                        Total: ${selectedReservation.total_cost}
+                        Total: RON{selectedReservation.total_cost}
                       </Text>
                     </View>
                   </View>
@@ -387,28 +472,32 @@ const Reservations = ({ navigation }) => {
                     </View>
                   </TouchableOpacity>
 
-                  {(getReservationStatus(selectedReservation) === 'upcoming' || 
-                    getReservationStatus(selectedReservation) === 'active') && (
-                    <TouchableOpacity
-                      style={[
-                        globalStyles.button,
-                        { 
-                          flex: 1, 
-                          marginLeft: 8, 
-                          backgroundColor: colors.error,
-                          opacity: cancelLoading ? 0.6 : 1 
-                        }
-                      ]}
-                      onPress={() => handleCancelReservation(selectedReservation.id)}
-                      disabled={cancelLoading}
-                    >
-                      {cancelLoading ? (
-                        <ActivityIndicator color={colors.white} size="small" />
-                      ) : (
-                        <Text style={globalStyles.buttonText}>Cancel</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
+                  {(() => {
+                    const status = getReservationStatus(selectedReservation);
+                    const canCancel = (status === 'upcoming' || status === 'active') && selectedReservation.status === 'active';
+                    
+                    return canCancel && (
+                      <TouchableOpacity
+                        style={[
+                          globalStyles.button,
+                          { 
+                            flex: 1, 
+                            marginLeft: 8, 
+                            backgroundColor: colors.error,
+                            opacity: cancelLoading ? 0.6 : 1 
+                          }
+                        ]}
+                        onPress={() => handleCancelReservation(selectedReservation.id)}
+                        disabled={cancelLoading}
+                      >
+                        {cancelLoading ? (
+                          <ActivityIndicator color={colors.white} size="small" />
+                        ) : (
+                          <Text style={globalStyles.buttonText}>Cancel</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })()}
                 </View>
               </>
             )}

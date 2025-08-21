@@ -111,6 +111,16 @@ const Profile = ({ navigation }) => {
     saveSettings(newSettings);
   };
 
+  const getProfileImageUrl = () => {
+    if (!user?.profileImageUrl) return null;
+    
+    if (user.profileImageUrl.startsWith('http')) {
+      return user.profileImageUrl;
+    } else {
+      return `http://192.168.100.20:3000${user.profileImageUrl}`;
+    }
+  };
+
   const renderStatCard = (title, value, icon, color) => (
     <View style={[globalStyles.cardSmall, { flex: 1, alignItems: 'center', marginHorizontal: 4 }]}>
       <View style={{
@@ -196,7 +206,7 @@ const Profile = ({ navigation }) => {
         onValueChange={(value) => updateSetting(settingKey, value)}
         trackColor={{ false: colors.surface, true: colors.primary + '40' }}
         thumbColor={settings[settingKey] ? colors.primary : colors.textMuted}
-        style={{ transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] }} // Slightly smaller switch
+        style={{ transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] }}
       />
     )
   );
@@ -247,9 +257,9 @@ const Profile = ({ navigation }) => {
               }}
               onPress={() => navigation.navigate('EditProfile', { user })}
             >
-              {user?.profileImageUrl ? (
+              {getProfileImageUrl() ? (
                 <Image
-                  source={{ uri: user.profileImageUrl.startsWith('http') ? user.profileImageUrl : `http://192.168.100.20:3000${user.profileImageUrl}` }}
+                  source={{ uri: getProfileImageUrl() }}
                   style={{
                     width: 80,
                     height: 80,

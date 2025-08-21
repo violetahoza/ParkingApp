@@ -39,7 +39,12 @@ const DeleteAccount = ({ navigation }) => {
   };
 
   const handleDeleteAccount = async () => {
-    if (!validateForm()) return;
+    console.log('🔥 DELETE ACCOUNT: Starting deletion process...');
+    
+    if (!validateForm()) {
+      console.log('❌ DELETE ACCOUNT: Form validation failed');
+      return;
+    }
 
     Alert.alert(
       'Final Confirmation',
@@ -50,38 +55,64 @@ const DeleteAccount = ({ navigation }) => {
           text: 'Yes, Delete Forever',
           style: 'destructive',
           onPress: async () => {
+            console.log('🔥 DELETE ACCOUNT: User confirmed final deletion');
             setIsLoading(true);
+            
             try {
-              await ParkingAPI.deleteAccount(password);
+              console.log('🔥 DELETE ACCOUNT: Calling API deleteAccount with password...');
+              console.log('🔥 DELETE ACCOUNT: Password length:', password.length);
               
-              Alert.alert(
-                'Account Deleted',
-                'Your account has been permanently deleted. We\'re sorry to see you go!',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      if (global.refreshAuth) {
-                        setTimeout(() => global.refreshAuth(), 100);
-                      }
+              const response = await ParkingAPI.deleteAccount(password);
+              
+              console.log('🔥 DELETE ACCOUNT: API Response:', response);
+              
+              if (response && response.success) {
+                console.log('✅ DELETE ACCOUNT: Account deletion successful');
+                
+                Alert.alert(
+                  'Account Deleted',
+                  'Your account has been permanently deleted. We\'re sorry to see you go!',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        console.log('🔥 DELETE ACCOUNT: Triggering auth refresh...');
+                        if (global.refreshAuth) {
+                          setTimeout(() => global.refreshAuth(), 100);
+                        }
+                      },
                     },
-                  },
-                ]
-              );
+                  ]
+                );
+              } else {
+                console.log('❌ DELETE ACCOUNT: API returned success=false');
+                throw new Error(response?.error || 'Unknown error occurred');
+              }
             } catch (error) {
-              console.error('Account deletion error:', error);
+              console.error('❌ DELETE ACCOUNT: Error occurred:', error);
+              console.error('❌ DELETE ACCOUNT: Error message:', error.message);
+              console.error('❌ DELETE ACCOUNT: Error stack:', error.stack);
               
               let errorMessage = 'Failed to delete account. Please try again.';
               
               if (error.message.includes('Incorrect password')) {
+                console.log('❌ DELETE ACCOUNT: Incorrect password error');
                 errorMessage = 'Incorrect password. Please try again.';
                 setErrors({ password: 'Incorrect password' });
               } else if (error.message.includes('active reservations')) {
+                console.log('❌ DELETE ACCOUNT: Active reservations error');
                 errorMessage = 'You have active reservations. Please cancel them before deleting your account.';
+              } else if (error.message.includes('Authentication required')) {
+                console.log('❌ DELETE ACCOUNT: Authentication error');
+                errorMessage = 'Authentication required. Please log in again.';
+              } else if (error.message.includes('Network error')) {
+                console.log('❌ DELETE ACCOUNT: Network error');
+                errorMessage = 'Network error. Please check your connection and try again.';
               }
               
               Alert.alert('Error', errorMessage);
             } finally {
+              console.log('🔥 DELETE ACCOUNT: Cleaning up, setting loading to false');
               setIsLoading(false);
             }
           },
@@ -181,14 +212,20 @@ const DeleteAccount = ({ navigation }) => {
 
       <TouchableOpacity
         style={[globalStyles.button, { backgroundColor: colors.error, marginBottom: 16 }]}
-        onPress={() => setStep(2)}
+        onPress={() => {
+          console.log('🔥 DELETE ACCOUNT: Moving to step 2');
+          setStep(2);
+        }}
       >
         <Text style={globalStyles.buttonText}>I understand, continue with deletion</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={globalStyles.buttonSecondary}
-        onPress={() => navigation.goBack()}
+        onPress={() => {
+          console.log('🔥 DELETE ACCOUNT: User cancelled, going back');
+          navigation.goBack();
+        }}
       >
         <Text style={globalStyles.buttonTextSecondary}>Cancel and go back</Text>
       </TouchableOpacity>
@@ -232,6 +269,7 @@ const DeleteAccount = ({ navigation }) => {
           placeholderTextColor={colors.textMuted}
           value={password}
           onChangeText={(text) => {
+            console.log('🔥 DELETE ACCOUNT: Password changed, length:', text.length);
             setPassword(text);
             if (errors.password) {
               setErrors({ ...errors, password: null });
@@ -260,6 +298,7 @@ const DeleteAccount = ({ navigation }) => {
           placeholderTextColor={colors.textMuted}
           value={confirmText}
           onChangeText={(text) => {
+            console.log('🔥 DELETE ACCOUNT: Confirm text changed:', text);
             setConfirmText(text);
             if (errors.confirmText) {
               setErrors({ ...errors, confirmText: null });
@@ -307,7 +346,10 @@ const DeleteAccount = ({ navigation }) => {
 
       <TouchableOpacity
         style={globalStyles.buttonSecondary}
-        onPress={() => setStep(1)}
+        onPress={() => {
+          console.log('🔥 DELETE ACCOUNT: Going back to step 1');
+          setStep(1);
+        }}
         disabled={isLoading}
       >
         <Text style={globalStyles.buttonTextSecondary}>Go back</Text>

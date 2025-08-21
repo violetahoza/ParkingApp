@@ -30,32 +30,6 @@ const ChangePhoto = ({ navigation, route }) => {
     }
   };
 
-  const showImageOptions = () => {
-    Alert.alert(
-      'Select Photo',
-      'Choose how you want to select your profile photo',
-      [
-        {
-          text: 'Camera',
-          onPress: takePhoto,
-        },
-        {
-          text: 'Photo Library',
-          onPress: pickImage,
-        },
-        {
-          text: 'Remove Photo',
-          onPress: removePhoto,
-          style: 'destructive',
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
-
   const takePhoto = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -159,7 +133,13 @@ const ChangePhoto = ({ navigation, route }) => {
 
   const getDisplayImage = () => {
     if (selectedImage) return selectedImage.uri;
-    if (currentPhoto) return currentPhoto;
+    if (currentPhoto) {
+      if (currentPhoto.startsWith('http')) {
+        return currentPhoto;
+      } else {
+        return `http://192.168.100.20:3000${currentPhoto}`;
+      }
+    }
     return null;
   };
 
@@ -167,6 +147,8 @@ const ChangePhoto = ({ navigation, route }) => {
     if (!user) return 'U';
     return `${user.firstName?.charAt(0) || 'U'}${user.lastName?.charAt(0) || ''}`;
   };
+
+  const hasCurrentPhoto = currentPhoto && !selectedImage;
 
   return (
     <SafeAreaView style={globalStyles.container}>
@@ -236,7 +218,7 @@ const ChangePhoto = ({ navigation, route }) => {
             {user?.firstName} {user?.lastName}
           </Text>
           <Text style={[globalStyles.caption, { textAlign: 'center' }]}>
-            Tap the buttons below to change your profile photo
+            {selectedImage ? 'Tap Save Photo to update your profile picture' : 'Choose how you want to update your profile photo'}
           </Text>
         </View>
 
@@ -283,23 +265,11 @@ const ChangePhoto = ({ navigation, route }) => {
             <>
               <TouchableOpacity
                 style={[globalStyles.button, { marginBottom: 16 }]}
-                onPress={showImageOptions}
+                onPress={takePhoto}
               >
                 <View style={globalStyles.row}>
                   <Ionicons name="camera" size={20} color={colors.white} />
                   <Text style={[globalStyles.buttonText, { marginLeft: 8 }]}>
-                    Change Photo
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[globalStyles.buttonSecondary, { marginBottom: 16 }]}
-                onPress={takePhoto}
-              >
-                <View style={globalStyles.row}>
-                  <Ionicons name="camera-outline" size={20} color={colors.primary} />
-                  <Text style={[globalStyles.buttonTextSecondary, { marginLeft: 8 }]}>
                     Take Photo
                   </Text>
                 </View>
@@ -317,25 +287,31 @@ const ChangePhoto = ({ navigation, route }) => {
                 </View>
               </TouchableOpacity>
 
-              {currentPhoto && (
-                <TouchableOpacity
-                  style={[
-                    globalStyles.buttonSecondary,
+              <TouchableOpacity
+                style={[
+                  globalStyles.buttonSecondary,
+                  { 
+                    borderColor: colors.error,
+                    marginBottom: 16,
+                    opacity: hasCurrentPhoto ? 1 : 0.5
+                  }
+                ]}
+                onPress={removePhoto}
+                disabled={!hasCurrentPhoto}
+              >
+                <View style={globalStyles.row}>
+                  <Ionicons name="trash-outline" size={20} color={hasCurrentPhoto ? colors.error : colors.textMuted} />
+                  <Text style={[
+                    globalStyles.buttonTextSecondary, 
                     { 
-                      borderColor: colors.error,
-                      marginBottom: 16 
+                      color: hasCurrentPhoto ? colors.error : colors.textMuted,
+                      marginLeft: 8 
                     }
-                  ]}
-                  onPress={removePhoto}
-                >
-                  <View style={globalStyles.row}>
-                    <Ionicons name="trash-outline" size={20} color={colors.error} />
-                    <Text style={[globalStyles.buttonTextSecondary, { color: colors.error, marginLeft: 8 }]}>
-                      Remove Photo
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+                  ]}>
+                    Remove Photo
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </>
           )}
         </View>

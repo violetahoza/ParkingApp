@@ -653,6 +653,46 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
   try {
     const { spotId, startTime, endTime, totalCost } = req.body;
 
+    console.log('🎯 Creating reservation with data:', {
+      spotId,
+      startTime,
+      endTime,
+      totalCost,
+      userId: req.user.userId
+    });
+
+    // Convert ISO strings to Romania timezone (UTC+2/UTC+3) then to MySQL datetime format
+    const formatDateForMySQL = (isoString) => {
+      const date = new Date(isoString);
+      
+      // Convert to Romania timezone (UTC+2 in winter, UTC+3 in summer)
+      // Get the local timezone offset and apply it
+      const romaniaOffset = 2; // Hours ahead of UTC (adjust to 3 during summer time)
+      const localDate = new Date(date.getTime() + (romaniaOffset * 60 * 60 * 1000));
+      
+      // Format: YYYY-MM-DD HH:mm:ss
+      const formatted = localDate.toISOString().slice(0, 19).replace('T', ' ');
+      
+      console.log('🕐 TIME CONVERSION:', {
+        original_utc: isoString,
+        parsed_utc: date.toISOString(),
+        romania_time: localDate.toISOString(),
+        mysql_format: formatted
+      });
+      
+      return formatted;
+    };
+
+    const formattedStartTime = formatDateForMySQL(startTime);
+    const formattedEndTime = formatDateForMySQL(endTime);
+
+    console.log('🎯 Formatted times for Romania timezone:', {
+      original_start: startTime,
+      formatted_start: formattedStartTime,
+      original_end: endTime,
+      formatted_end: formattedEndTime
+    });
+
     // Check if spot is available
     const [spots] = await pool.execute(
       'SELECT is_available FROM parking_spots WHERE id = ?',
@@ -660,10 +700,12 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     );
 
     if (spots.length === 0) {
+      console.log('❌ Parking spot not found:', spotId);
       return res.status(404).json({ error: 'Parking spot not found' });
     }
 
     if (!spots[0].is_available) {
+      console.log('❌ Parking spot not available:', spotId);
       return res.status(400).json({ error: 'Parking spot is not available' });
     }
 
@@ -672,24 +714,31 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
       `SELECT id FROM reservations 
        WHERE spot_id = ? AND status = 'active' 
        AND ((start_time <= ? AND end_time > ?) OR (start_time < ? AND end_time >= ?))`,
-      [spotId, startTime, startTime, endTime, endTime]
+      [spotId, formattedStartTime, formattedStartTime, formattedEndTime, formattedEndTime]
     );
 
     if (conflicts.length > 0) {
+      console.log('❌ Time slot conflicts with existing reservation');
       return res.status(400).json({ error: 'Time slot conflicts with existing reservation' });
     }
+
+    console.log('✅ All checks passed, creating reservation...');
 
     // Create reservation
     const [result] = await pool.execute(
       'INSERT INTO reservations (user_id, spot_id, start_time, end_time, total_cost) VALUES (?, ?, ?, ?, ?)',
-      [req.user.userId, spotId, startTime, endTime, totalCost]
+      [req.user.userId, spotId, formattedStartTime, formattedEndTime, totalCost]
     );
+
+    console.log('✅ Reservation created with ID:', result.insertId);
 
     // Mark spot as unavailable
     await pool.execute(
       'UPDATE parking_spots SET is_available = FALSE WHERE id = ?',
       [spotId]
     );
+
+    console.log('✅ Spot marked as unavailable');
 
     res.status(201).json({
       success: true,
@@ -698,6 +747,12 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Reservation creation error:', error);
+    
+    if (error.code === 'ER_TRUNCATED_WRONG_VALUE') {
+      console.error('❌ DateTime format error:', error.sqlMessage);
+      return res.status(400).json({ error: 'Invalid date/time format' });
+    }
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });

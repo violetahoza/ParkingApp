@@ -24,16 +24,14 @@ export const useRealTimeData = (pollInterval = 30000) => {
     try {
       console.log('🔄 Fetching real-time parking data...');
       
-      // Get parking lots near Cluj-Napoca
       const locations = await ParkingAPI.getParkingLots(46.7712, 23.6236, 50);
       
-      // Calculate stats from locations
       const stats = {
         totalLocations: locations.length,
         total: locations.reduce((sum, loc) => sum + (loc.total_spots || 0), 0),
         available: locations.reduce((sum, loc) => sum + (loc.available_spots || 0), 0),
         occupied: locations.reduce((sum, loc) => sum + ((loc.total_spots || 0) - (loc.available_spots || 0)), 0),
-        reserved: 0, // We can add this later
+        reserved: 0,
         occupancyRate: 0
       };
       
@@ -72,10 +70,7 @@ export const useRealTimeData = (pollInterval = 30000) => {
       clearInterval(intervalRef.current);
     }
     
-    // Initial fetch
     fetchData();
-    
-    // Start polling
     intervalRef.current = setInterval(fetchData, pollInterval);
     console.log(`🔄 Started polling every ${pollInterval/1000}s`);
   };
@@ -117,6 +112,126 @@ export const useRealTimeData = (pollInterval = 30000) => {
   };
 };
 
+export const useReservations = () => {
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadReservations();
+    
+    // Auto-update expired reservations every minute
+    const expiredCheckInterval = setInterval(() => {
+      checkAndUpdateExpiredReservations();
+    }, 60000); // Check every minute
+
+    return () => clearInterval(expiredCheckInterval);
+  }, []);
+
+  const loadReservations = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const userReservations = await ParkingAPI.getUserReservations();
+      setReservations(userReservations);
+    } catch (err) {
+      console.error('Failed to load reservations:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkAndUpdateExpiredReservations = async () => {
+    try {
+      const now = new Date();
+      let hasExpiredReservations = false;
+
+      const updatedReservations = reservations.map(reservation => {
+        if (reservation.status === 'active') {
+          const endTime = new Date(reservation.end_time + 'Z');
+          if (now > endTime) {
+            hasExpiredReservations = true;
+            console.log('🕐 Auto-updating expired reservation:', reservation.id);
+            // Mark as completed locally
+            return { ...reservation, status: 'completed' };
+          }
+        }
+        return reservation;
+      });
+
+      if (hasExpiredReservations) {
+        setReservations(updatedReservations);
+        // Trigger global data refresh to update available spots
+        if (global.refreshParkingData) {
+          global.refreshParkingData();
+        }
+      }
+    } catch (error) {
+      console.error('Error checking expired reservations:', error);
+    }
+  };
+
+  const createReservation = async (reservationData) => {
+    try {
+      const response = await ParkingAPI.createReservation(reservationData);
+      if (response.success) {
+        await loadReservations();
+        // Trigger global data refresh
+        if (global.refreshParkingData) {
+          global.refreshParkingData();
+        }
+      }
+      return response;
+    } catch (err) {
+      console.error('Failed to create reservation:', err);
+      throw err;
+    }
+  };
+
+  const cancelReservation = async (reservationId) => {
+    try {
+      const response = await ParkingAPI.cancelReservation(reservationId);
+      if (response.success) {
+        await loadReservations();
+        // Trigger global data refresh immediately
+        if (global.refreshParkingData) {
+          global.refreshParkingData();
+        }
+        console.log('✅ Reservation cancelled, parking data refreshed');
+      }
+      return response;
+    } catch (err) {
+      console.error('Failed to cancel reservation:', err);
+      throw err;
+    }
+  };
+
+  const extendReservation = async (reservationId, additionalHours) => {
+    try {
+      const response = await ParkingAPI.extendReservation(reservationId, additionalHours);
+      if (response.success) {
+        await loadReservations();
+      }
+      return response;
+    } catch (err) {
+      console.error('Failed to extend reservation:', err);
+      throw err;
+    }
+  };
+
+  return {
+    reservations,
+    loading,
+    error,
+    loadReservations,
+    createReservation,
+    cancelReservation,
+    extendReservation
+  };
+};
+
 export const useParkingSearch = () => {
   const [searchResults, setSearchResults] = useState({
     results: [],
@@ -137,20 +252,17 @@ export const useParkingSearch = () => {
     try {
       console.log(`🔍 Searching parking for: ${query}`);
       
-      // Get all parking lots
       const allLots = await ParkingAPI.getParkingLots(
         userLocation?.latitude || 46.7712,
         userLocation?.longitude || 23.6236,
         50
       );
       
-      // Filter by search query
       const filteredResults = allLots.filter(lot =>
         lot.name.toLowerCase().includes(query.toLowerCase()) ||
         lot.address.toLowerCase().includes(query.toLowerCase())
       );
       
-      // Sort by available spots
       const sortedResults = filteredResults.sort((a, b) => 
         (b.available_spots || 0) - (a.available_spots || 0)
       );
@@ -200,67 +312,6 @@ export const useParkingSearch = () => {
   };
 };
 
-export const useReservations = () => {
-  const [reservations, setReservations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    loadReservations();
-  }, []);
-
-  const loadReservations = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const userReservations = await ParkingAPI.getUserReservations();
-      setReservations(userReservations);
-    } catch (err) {
-      console.error('Failed to load reservations:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createReservation = async (reservationData) => {
-    try {
-      const response = await ParkingAPI.createReservation(reservationData);
-      if (response.success) {
-        await loadReservations(); // Refresh the list
-      }
-      return response;
-    } catch (err) {
-      console.error('Failed to create reservation:', err);
-      throw err;
-    }
-  };
-
-  const cancelReservation = async (reservationId) => {
-    try {
-      const response = await ParkingAPI.cancelReservation(reservationId);
-      if (response.success) {
-        await loadReservations(); // Refresh the list
-      }
-      return response;
-    } catch (err) {
-      console.error('Failed to cancel reservation:', err);
-      throw err;
-    }
-  };
-
-  return {
-    reservations,
-    loading,
-    error,
-    loadReservations,
-    createReservation,
-    cancelReservation
-  };
-};
-
-// Hook for system health monitoring
 export const useSystemHealth = () => {
   const [health, setHealth] = useState({
     status: 'unknown',
@@ -295,7 +346,6 @@ export const useSystemHealth = () => {
   useEffect(() => {
     checkHealth();
     
-    // Check health every 5 minutes
     const interval = setInterval(checkHealth, 5 * 60 * 1000);
     
     return () => clearInterval(interval);

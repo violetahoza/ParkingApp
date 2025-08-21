@@ -108,14 +108,26 @@ const Navigation = ({ navigation, route }) => {
       const now = new Date();
       const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
       
-      const reservationData = {
+      console.log('🎯 BOOKING: Creating reservation with data:', {
         spotId,
         startTime: now.toISOString(),
         endTime: endTime.toISOString(),
-        totalCost: selectedLot.hourly_rate * 2, // 2 hours
+        totalCost: selectedLot.hourly_rate * 2,
+        selectedLot: selectedLot.name
+      });
+      
+      const reservationData = {
+        spotId: parseInt(spotId), 
+        startTime: now.toISOString(),
+        endTime: endTime.toISOString(),
+        totalCost: parseFloat((selectedLot.hourly_rate * 2).toFixed(2)), 
       };
 
+      console.log('🎯 BOOKING: Sending reservation data:', reservationData);
+
       const response = await ParkingAPI.createReservation(reservationData);
+      
+      console.log('🎯 BOOKING: API Response:', response);
       
       if (response.success) {
         setShowBookingModal(false);
@@ -136,10 +148,30 @@ const Navigation = ({ navigation, route }) => {
         
         refreshData();
         loadParkingSpots(selectedLot.id);
+      } else {
+        console.log('❌ BOOKING: Response success was false');
+        throw new Error(response.error || 'Booking failed');
       }
     } catch (error) {
-      console.error('Booking failed:', error);
-      Alert.alert('Booking Failed', error.message || 'Please try again');
+      console.error('❌ BOOKING: Booking failed:', error);
+      console.error('❌ BOOKING: Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      
+      let errorMessage = 'Please try again.';
+      
+      if (error.message.includes('not available')) {
+        errorMessage = 'This parking spot is no longer available. Please select another spot.';
+      } else if (error.message.includes('conflicts')) {
+        errorMessage = 'Time slot conflicts with existing reservation. Please try a different time.';
+      } else if (error.message.includes('Network error')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Booking Failed', errorMessage);
     } finally {
       setBookingLoading(false);
     }
@@ -178,7 +210,7 @@ const Navigation = ({ navigation, route }) => {
                 </Text>
               </View>
               <Text style={globalStyles.caption}>
-                ${item.hourly_rate}/hour
+                RON{item.hourly_rate}/hour
               </Text>
             </View>
             
@@ -348,7 +380,7 @@ const Navigation = ({ navigation, route }) => {
                 <Text style={globalStyles.subheading}>{selectedLot.name}</Text>
                 <Text style={globalStyles.caption}>{selectedLot.address}</Text>
                 <Text style={[globalStyles.bodyText, { marginTop: 8 }]}>
-                  Rate: ${selectedLot.hourly_rate}/hour
+                  Rate: RON{selectedLot.hourly_rate}/hour
                 </Text>
               </View>
             )}

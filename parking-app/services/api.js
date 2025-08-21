@@ -182,6 +182,21 @@ class ParkingAPI {
     return response;
   }
 
+  // Delete Account
+  async deleteAccount(password) {
+    const response = await this.makeRequest('/profile/delete-account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    });
+    
+    // If account deletion is successful, clear the token
+    if (response.success) {
+      await this.logout();
+    }
+    
+    return response;
+  }
+
   // Vehicle Management endpoints
   async getUserVehicles() {
     const response = await this.makeRequest('/vehicles');
@@ -218,7 +233,6 @@ class ParkingAPI {
     return response;
   }
 
-  // Delete Account
   async deleteAccount(password) {
     const response = await this.makeRequest('/profile/delete-account', {
       method: 'DELETE',
@@ -244,24 +258,37 @@ class ParkingAPI {
     return response.spots;
   }
 
-  // Reservations endpoints
+// Reservations endpoints
   async createReservation(reservationData) {
+    console.log('🎯 API: Creating reservation with data:', reservationData);
+    
+    if (!reservationData.spotId || !reservationData.startTime || !reservationData.endTime || !reservationData.totalCost) {
+      console.error('❌ API: Missing required reservation data');
+      throw new Error('Missing required reservation data');
+    }
+    
     const response = await this.makeRequest('/reservations', {
       method: 'POST',
       body: JSON.stringify(reservationData),
     });
+    
+    console.log('🎯 API: Reservation response:', response);
     return response;
   }
 
   async getUserReservations() {
+    console.log('🎯 API: Fetching user reservations...');
     const response = await this.makeRequest('/reservations');
+    console.log('🎯 API: User reservations response:', response);
     return response.reservations;
   }
 
   async cancelReservation(reservationId) {
+    console.log('🎯 API: Cancelling reservation:', reservationId);
     const response = await this.makeRequest(`/reservations/${reservationId}/cancel`, {
       method: 'PUT',
     });
+    console.log('🎯 API: Cancel reservation response:', response);
     return response;
   }
 
@@ -278,7 +305,6 @@ class ParkingAPI {
     return response;
   }
 
-  // Helper methods for app functionality
   async isAuthenticated() {
     if (!this.token) {
       await this.init();
@@ -286,7 +312,6 @@ class ParkingAPI {
     return !!this.token;
   }
 
-  // Mock methods for features not yet implemented
   async getFavorites() {
     return [];
   }
@@ -298,7 +323,7 @@ class ParkingAPI {
 
   // Get distance between two points (Haversine formula)
   getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radius of the Earth in kilometers
+    const R = 6371; // radius of the Earth in kilometers
     const dLat = this.deg2rad(lat2 - lat1);
     const dLon = this.deg2rad(lon2 - lon1);
     const a =
@@ -308,7 +333,7 @@ class ParkingAPI {
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distance in kilometers
+    const distance = R * c; // distance in kilometers
     return distance;
   }
 
@@ -316,30 +341,46 @@ class ParkingAPI {
     return deg * (Math.PI / 180);
   }
 
-  // Format time for display
   formatTime(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('ro-RO', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false // use 24-hour format
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return dateString;
+    }
   }
 
-  // Format date for display
   formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ro-RO', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateString;
+    }
   }
 
-  // Check if reservation is active
   isReservationActive(reservation) {
     const now = new Date();
     const startTime = new Date(reservation.start_time);
     const endTime = new Date(reservation.end_time);
+    
+    console.log('🎯 CHECKING ACTIVE:', {
+      now: now.toISOString(),
+      start: startTime.toISOString(),
+      end: endTime.toISOString(),
+      status: reservation.status,
+      isActive: reservation.status === 'active' && now >= startTime && now <= endTime
+    });
     
     return (
       reservation.status === 'active' &&
@@ -348,16 +389,23 @@ class ParkingAPI {
     );
   }
 
-  // Check if reservation is upcoming
   isReservationUpcoming(reservation) {
     const now = new Date();
     const startTime = new Date(reservation.start_time);
+    
+    console.log('🎯 CHECKING UPCOMING:', {
+      now: now.toISOString(),
+      start: startTime.toISOString(),
+      status: reservation.status,
+      isUpcoming: reservation.status === 'active' && now < startTime
+    });
     
     return (
       reservation.status === 'active' &&
       now < startTime
     );
   }
+
 }
 
 // Export singleton instance

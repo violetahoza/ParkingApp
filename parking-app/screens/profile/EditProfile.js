@@ -54,6 +54,7 @@ const EditProfile = ({ navigation, route }) => {
           email: userData.email || '',
           phone: userData.phone || '',
           licensePlate: userData.licensePlate || '',
+          profileImageUrl: userData.profileImageUrl || '',
         };
         
         setFormData(profileData);
@@ -172,6 +173,17 @@ const EditProfile = ({ navigation, route }) => {
     }
   };
 
+  const getProfileImageUrl = () => {
+    const imageUrl = originalData.profileImageUrl || formData.profileImageUrl;
+    if (!imageUrl) return null;
+    
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    } else {
+      return `http://192.168.100.20:3000${imageUrl}`;
+    }
+  };
+
   if (loadingProfile) {
     return (
       <View style={globalStyles.centerContainer}>
@@ -235,13 +247,9 @@ const EditProfile = ({ navigation, route }) => {
               }}
               onPress={() => navigation.navigate('ChangePhoto', { user: { ...originalData, ...formData } })}
             >
-              {(originalData.profileImageUrl || formData.profileImageUrl) ? (
+              {getProfileImageUrl() ? (
                 <Image
-                  source={{ 
-                    uri: (originalData.profileImageUrl || formData.profileImageUrl).startsWith('http') 
-                      ? (originalData.profileImageUrl || formData.profileImageUrl)
-                      : `http://192.168.100.20:3000${originalData.profileImageUrl || formData.profileImageUrl}`
-                  }}
+                  source={{ uri: getProfileImageUrl() }}
                   style={{
                     width: 100,
                     height: 100,

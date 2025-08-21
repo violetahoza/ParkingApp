@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,6 +70,16 @@ const Home = ({ navigation }) => {
     return 'Good Evening';
   };
 
+  const getProfileImageUrl = () => {
+    if (!user?.profileImageUrl) return null;
+    
+    if (user.profileImageUrl.startsWith('http')) {
+      return user.profileImageUrl;
+    } else {
+      return `http://192.168.100.20:3000${user.profileImageUrl}`;
+    }
+  };
+
   const renderQuickAction = ({ item }) => (
     <TouchableOpacity
       style={{
@@ -118,7 +129,7 @@ const Home = ({ navigation }) => {
             </Text>
           </View>
           <Text style={[globalStyles.caption, { fontSize: 12 }]}>
-            ${item.hourly_rate}/hr
+            RON{item.hourly_rate}/hr
           </Text>
         </View>
       </View>
@@ -229,7 +240,19 @@ const Home = ({ navigation }) => {
               }}
               onPress={() => navigation.navigate('Profile')}
             >
-              <Ionicons name="person" size={18} color={colors.white} />
+              {getProfileImageUrl() ? (
+                <Image
+                  source={{ uri: getProfileImageUrl() }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person" size={18} color={colors.white} />
+              )}
             </TouchableOpacity>
           </View>
 
