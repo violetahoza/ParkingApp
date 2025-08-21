@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ const Navigation = ({ navigation, route }) => {
   const [parkingSpots, setParkingSpots] = useState([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [selectedDuration, setSelectedDuration] = useState(2); // Default 2 hours
   const [userLocation] = useState({
     latitude: 46.7712,
     longitude: 23.6236,
@@ -34,12 +36,38 @@ const Navigation = ({ navigation, route }) => {
 
   const { locations, loading, refreshData } = useRealTimeData();
 
+  const durationOptions = [
+  { value: 0.5, label: '30 mins', price: (rate) => rate ? (rate * 0.5) : 0 },
+  { value: 1, label: '1 hour', price: (rate) => rate ? (rate * 1) : 0 },
+  { value: 2, label: '2 hours', price: (rate) => rate ? (rate * 2) : 0 },
+  { value: 3, label: '3 hours', price: (rate) => rate ? (rate * 3) : 0 },
+  { value: 4, label: '4 hours', price: (rate) => rate ? (rate * 4) : 0 },
+  { value: 6, label: '6 hours', price: (rate) => rate ? (rate * 6) : 0 },
+  { value: 8, label: '8 hours', price: (rate) => rate ? (rate * 8) : 0 },
+  { value: 16, label: '16 hours', price: (rate) => rate ? (rate * 16) : 0 },
+  { value: 24, label: '24 hours', price: (rate) => rate ? (rate * 24) : 0 },
+];
+
   useEffect(() => {
     if (route.params?.selectedLot) {
       setSelectedLot(route.params.selectedLot);
       loadParkingSpots(route.params.selectedLot.id);
     }
   }, [route.params]);
+
+  useEffect(() => {
+    global.refreshParkingData = () => {
+      console.log('🔄 Global parking data refresh triggered');
+      refreshData();
+      if (selectedLot) {
+        loadParkingSpots(selectedLot.id);
+      }
+    };
+
+    return () => {
+      global.refreshParkingData = null;
+    };
+  }, [refreshData, selectedLot]);
 
   const loadParkingSpots = async (lotId) => {
     try {
@@ -106,13 +134,14 @@ const Navigation = ({ navigation, route }) => {
       setBookingLoading(true);
       
       const now = new Date();
-      const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
+      const endTime = new Date(now.getTime() + selectedDuration * 60 * 60 * 1000);
       
       console.log('🎯 BOOKING: Creating reservation with data:', {
         spotId,
         startTime: now.toISOString(),
         endTime: endTime.toISOString(),
-        totalCost: selectedLot.hourly_rate * 2,
+        duration: selectedDuration,
+        totalCost: selectedLot.hourly_rate * selectedDuration,
         selectedLot: selectedLot.name
       });
       
@@ -120,7 +149,8 @@ const Navigation = ({ navigation, route }) => {
         spotId: parseInt(spotId), 
         startTime: now.toISOString(),
         endTime: endTime.toISOString(),
-        totalCost: parseFloat((selectedLot.hourly_rate * 2).toFixed(2)), 
+        totalCost: selectedLot.hourly_rate ? parseFloat((selectedLot.hourly_rate * selectedDuration).toFixed(2)) : 0,
+        duration: selectedDuration,
       };
 
       console.log('🎯 BOOKING: Sending reservation data:', reservationData);
@@ -131,9 +161,15 @@ const Navigation = ({ navigation, route }) => {
       
       if (response.success) {
         setShowBookingModal(false);
+        
+        setTimeout(() => {
+          refreshData();
+          loadParkingSpots(selectedLot.id);
+        }, 100);
+        
         Alert.alert(
           'Booking Confirmed!',
-          `Your parking spot has been reserved for 2 hours at ${selectedLot.name}`,
+          `Your parking spot has been reserved for ${selectedDuration} ${selectedDuration === 1 ? 'hour' : 'hours'} at ${selectedLot.name}`,
           [
             {
               text: 'View Reservations',
@@ -145,19 +181,12 @@ const Navigation = ({ navigation, route }) => {
             },
           ]
         );
-        
-        refreshData();
-        loadParkingSpots(selectedLot.id);
       } else {
         console.log('❌ BOOKING: Response success was false');
         throw new Error(response.error || 'Booking failed');
       }
     } catch (error) {
       console.error('❌ BOOKING: Booking failed:', error);
-      console.error('❌ BOOKING: Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
       
       let errorMessage = 'Please try again.';
       
@@ -249,6 +278,47 @@ const Navigation = ({ navigation, route }) => {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderDurationOption = ({ item }) => {
+    const price = selectedLot ? item.price(selectedLot.hourly_rate) : 0;
+    const formattedPrice = typeof price === 'number' ? price.toFixed(2) : '0.00';
+    
+    return (
+      <TouchableOpacity
+        style={[
+          globalStyles.cardSmall,
+          {
+            backgroundColor: selectedDuration === item.value ? colors.primary : colors.card,
+            marginBottom: 8,
+            marginHorizontal: 4,
+          }
+        ]}
+        onPress={() => setSelectedDuration(item.value)}
+      >
+        <View style={{ alignItems: 'center' }}>
+          <Text style={[
+            globalStyles.subheading,
+            {
+              color: selectedDuration === item.value ? colors.white : colors.textPrimary,
+              fontSize: 16,
+              marginBottom: 4,
+            }
+          ]}>
+            {item.label}
+          </Text>
+          <Text style={[
+            globalStyles.caption,
+            {
+              color: selectedDuration === item.value ? colors.white : colors.textSecondary,
+              fontSize: 12,
+            }
+          ]}>
+            RON{formattedPrice}
+          </Text>
         </View>
       </TouchableOpacity>
     );
@@ -366,10 +436,10 @@ const Navigation = ({ navigation, route }) => {
             paddingHorizontal: 20,
             paddingTop: 20,
             paddingBottom: 40,
-            maxHeight: '80%',
+            maxHeight: '90%',
           }}>
             <View style={[globalStyles.spaceBetween, { marginBottom: 20 }]}>
-              <Text style={globalStyles.heading}>Select Parking Spot</Text>
+              <Text style={globalStyles.heading}>Select Duration & Spot</Text>
               <TouchableOpacity onPress={() => setShowBookingModal(false)}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
@@ -385,26 +455,72 @@ const Navigation = ({ navigation, route }) => {
               </View>
             )}
 
-            {loadingSpots ? (
-              <View style={[globalStyles.center, { height: 200 }]}>
-                <ActivityIndicator color={colors.primary} />
-                <Text style={[globalStyles.caption, { marginTop: 12 }]}>
-                  Loading available spots...
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={parkingSpots.filter(spot => spot.is_available)}
-                renderItem={renderParkingSpot}
-                keyExtractor={(item) => item.id.toString()}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                  <View style={[globalStyles.center, { height: 200 }]}>
-                    <Text style={globalStyles.bodyText}>No available spots</Text>
+            <ScrollView style={{ maxHeight: '60%' }} showsVerticalScrollIndicator={false}>
+              <Text style={[globalStyles.subheading, { marginBottom: 12 }]}>
+                Choose Duration:
+              </Text>
+              
+              <View style={{ 
+                flexDirection: 'row', 
+                flexWrap: 'wrap', 
+                justifyContent: 'space-between',
+                marginBottom: 20 
+              }}>
+                {durationOptions.map((option) => (
+                  <View key={option.value} style={{ width: '33%', marginBottom: 2 }}>
+                    {renderDurationOption({ item: option })}
                   </View>
-                }
-              />
-            )}
+                ))}
+              </View>
+
+              {selectedDuration && selectedLot && (
+                <View style={[
+                  globalStyles.card, 
+                  { 
+                    backgroundColor: colors.primary + '20', 
+                    borderColor: colors.primary, 
+                    borderWidth: 1,
+                    marginBottom: 16 
+                  }
+                ]}>
+                  <Text style={[globalStyles.subheading, { marginBottom: 8 }]}>
+                    Booking Summary
+                  </Text>
+                  <Text style={globalStyles.bodyText}>
+                    Duration: {selectedDuration} {selectedDuration === 1 ? 'hour' : 'hours'}
+                  </Text>
+                  <Text style={[globalStyles.bodyText, { color: colors.primary, fontWeight: 'bold' }]}>
+                    Total Cost: RON{selectedLot.hourly_rate ? (selectedLot.hourly_rate * selectedDuration).toFixed(2) : '0.00'}
+                  </Text>
+                </View>
+              )}
+
+              <Text style={[globalStyles.subheading, { marginBottom: 12 }]}>
+                Available Spots:
+              </Text>
+
+              {loadingSpots ? (
+                <View style={[globalStyles.center, { height: 100 }]}>
+                  <ActivityIndicator color={colors.primary} />
+                  <Text style={[globalStyles.caption, { marginTop: 12 }]}>
+                    Loading available spots...
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={parkingSpots.filter(spot => spot.is_available)}
+                  renderItem={renderParkingSpot}
+                  keyExtractor={(item) => item.id.toString()}
+                  showsVerticalScrollIndicator={false}
+                  scrollEnabled={false}
+                  ListEmptyComponent={
+                    <View style={[globalStyles.center, { height: 100 }]}>
+                      <Text style={globalStyles.bodyText}>No available spots</Text>
+                    </View>
+                  }
+                />
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
