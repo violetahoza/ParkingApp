@@ -406,6 +406,42 @@ class ParkingAPI {
     );
   }
 
+    async extendReservation(reservationId, additionalHours) {
+    console.log('🔄 API: Extending reservation:', { reservationId, additionalHours });
+    
+    const response = await this.makeRequest(`/reservations/${reservationId}/extend`, {
+      method: 'PUT',
+      body: JSON.stringify({ additionalHours }),
+    });
+    
+    console.log('🔄 API: Extend reservation response:', response);
+    return response;
+  }
+
+  async processPayment(paymentData) {
+    console.log('💳 API: Processing payment:', paymentData);
+    
+    const response = await this.makeRequest(`/reservations/${paymentData.reservationId}/payment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        paymentMethod: paymentData.paymentMethod,
+        transactionId: paymentData.transactionId,
+        amount: paymentData.amount
+      }),
+    });
+    
+    console.log('💳 API: Payment response:', response);
+    return response;
+  }
+
+  async getParkingLotRate(lotId) {
+    console.log('💰 API: Getting parking lot rate:', lotId);
+    
+    const response = await this.makeRequest(`/parking-lots/${lotId}/rate`);
+    
+    console.log('💰 API: Parking lot rate response:', response);
+    return response;
+  } 
 }
 
 // Export singleton instance

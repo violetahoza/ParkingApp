@@ -920,6 +920,120 @@ app.put('/api/reservations/:reservationId/cancel', authenticateToken, async (req
   }
 });
 
+app.put('/api/reservations/:reservationId/extend', authenticateToken, async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const { additionalHours } = req.body;
+
+    console.log('🔄 Extending reservation:', { reservationId, additionalHours, userId: req.user.userId });
+
+    // Validate additionalHours
+    if (!additionalHours || additionalHours < 1 || additionalHours > 6) {
+      return res.status(400).json({ error: 'Additional hours must be between 1 and 6' });
+    }
+
+    // Get reservation details
+    const [reservations] = await pool.execute(
+      `SELECT r.*, ps.lot_id, pl.hourly_rate 
+       FROM reservations r
+       JOIN parking_spots ps ON r.spot_id = ps.id
+       JOIN parking_lots pl ON ps.lot_id = pl.id
+       WHERE r.id = ?`,
+      [reservationId]
+    );
+
+    if (reservations.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    const reservation = reservations[0];
+
+    // Verify ownership
+    if (reservation.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Check if reservation can be extended (must be active)
+    if (reservation.status !== 'active') {
+      return res.status(400).json({ error: 'Only active reservations can be extended' });
+    }
+
+    // Check if reservation is currently active (not expired)
+    const now = new Date().toLocaleString('sv-SE', {
+      timeZone: 'Europe/Bucharest',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace('T', ' ');
+
+    if (new Date(reservation.end_time) <= new Date(now)) {
+      return res.status(400).json({ error: 'Cannot extend expired reservation' });
+    }
+
+    // Calculate new end time
+    const currentEndTime = new Date(reservation.end_time);
+    const newEndTime = new Date(currentEndTime.getTime() + (additionalHours * 60 * 60 * 1000));
+    
+    const formattedNewEndTime = newEndTime.toLocaleString('sv-SE', {
+      timeZone: 'Europe/Bucharest',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace('T', ' ');
+
+    // Calculate additional cost
+    const additionalCost = parseFloat((reservation.hourly_rate * additionalHours).toFixed(2));
+    const newTotalCost = parseFloat((parseFloat(reservation.total_cost) + additionalCost).toFixed(2));
+
+    // Check for conflicts with other reservations
+    const [conflicts] = await pool.execute(
+      `SELECT id FROM reservations 
+       WHERE spot_id = ? AND status = 'active' AND id != ?
+       AND start_time < ? AND end_time > ?`,
+      [reservation.spot_id, reservationId, formattedNewEndTime, reservation.end_time]
+    );
+
+    if (conflicts.length > 0) {
+      return res.status(400).json({ error: 'Extension conflicts with another reservation' });
+    }
+
+    console.log('🔄 Extension details:', {
+      currentEndTime: reservation.end_time,
+      newEndTime: formattedNewEndTime,
+      additionalCost,
+      newTotalCost
+    });
+
+    // Update reservation
+    await pool.execute(
+      'UPDATE reservations SET end_time = ?, total_cost = ? WHERE id = ?',
+      [formattedNewEndTime, newTotalCost, reservationId]
+    );
+
+    console.log('✅ Reservation extended successfully');
+
+    res.json({
+      success: true,
+      message: 'Reservation extended successfully',
+      extension: {
+        additionalHours,
+        additionalCost,
+        newEndTime: formattedNewEndTime,
+        newTotalCost
+      }
+    });
+  } catch (error) {
+    console.error('❌ Extend reservation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Demo user creation endpoint
 app.post('/api/create-demo-user', async (req, res) => {
   try {

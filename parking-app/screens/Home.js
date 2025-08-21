@@ -23,6 +23,7 @@ const { width } = Dimensions.get('window');
 const Home = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [recentReservations, setRecentReservations] = useState([]);
+  const [activeBookings, setActiveBookings] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +31,7 @@ const Home = ({ navigation }) => {
 
   useEffect(() => {
     loadUserData();
-    loadRecentReservations();
+    loadReservationsData();
   }, []);
 
   const loadUserData = async () => {
@@ -44,10 +45,27 @@ const Home = ({ navigation }) => {
     }
   };
 
-  const loadRecentReservations = async () => {
+  const loadReservationsData = async () => {
     try {
       const reservations = await ParkingAPI.getUserReservations();
+      
       setRecentReservations(reservations.slice(0, 3));
+      
+      const activeBookingsCount = reservations.filter(reservation => {
+        return reservation.status === 'active';
+      }).length;
+      
+      console.log('📊 Active bookings calculation:', {
+        totalReservations: reservations.length,
+        activeBookings: activeBookingsCount,
+        reservationStatuses: reservations.map(r => ({
+          id: r.id,
+          status: r.status,
+          isActive: r.status === 'active'
+        }))
+      });
+      
+      setActiveBookings(activeBookingsCount);
     } catch (error) {
       console.error('Failed to load reservations:', error);
     }
@@ -57,7 +75,7 @@ const Home = ({ navigation }) => {
     setIsRefreshing(true);
     await Promise.all([
       loadUserData(),
-      loadRecentReservations(),
+      loadReservationsData(),
       refreshData(),
     ]);
     setIsRefreshing(false);
@@ -259,10 +277,10 @@ const Home = ({ navigation }) => {
           <View style={[globalStyles.row, { justifyContent: 'space-around' }]}>
             <View style={{ alignItems: 'center' }}>
               <Text style={[globalStyles.title, { color: colors.white, fontSize: 18, marginBottom: 0 }]}>
-                {recentReservations.length}
+                {activeBookings}
               </Text>
               <Text style={[globalStyles.caption, { color: colors.white, opacity: 0.8, fontSize: 12 }]}>
-                Bookings
+                Active Bookings
               </Text>
             </View>
             <View style={{ alignItems: 'center' }}>

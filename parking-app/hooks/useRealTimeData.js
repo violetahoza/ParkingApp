@@ -154,7 +154,6 @@ export const useReservations = () => {
           if (now > endTime) {
             hasExpiredReservations = true;
             console.log('🕐 Auto-updating expired reservation:', reservation.id);
-            // Mark as completed locally
             return { ...reservation, status: 'completed' };
           }
         }
@@ -163,7 +162,6 @@ export const useReservations = () => {
 
       if (hasExpiredReservations) {
         setReservations(updatedReservations);
-        // Trigger global data refresh to update available spots
         if (global.refreshParkingData) {
           global.refreshParkingData();
         }
@@ -178,7 +176,6 @@ export const useReservations = () => {
       const response = await ParkingAPI.createReservation(reservationData);
       if (response.success) {
         await loadReservations();
-        // Trigger global data refresh
         if (global.refreshParkingData) {
           global.refreshParkingData();
         }
@@ -195,7 +192,6 @@ export const useReservations = () => {
       const response = await ParkingAPI.cancelReservation(reservationId);
       if (response.success) {
         await loadReservations();
-        // Trigger global data refresh immediately
         if (global.refreshParkingData) {
           global.refreshParkingData();
         }
@@ -210,13 +206,44 @@ export const useReservations = () => {
 
   const extendReservation = async (reservationId, additionalHours) => {
     try {
+      console.log('🔄 Hook: Extending reservation:', { reservationId, additionalHours });
+      
       const response = await ParkingAPI.extendReservation(reservationId, additionalHours);
+      
+      if (response.success) {
+        console.log('✅ Hook: Reservation extended successfully');
+        await loadReservations();
+        
+        if (global.refreshParkingData) {
+          global.refreshParkingData();
+        }
+      }
+      
+      return response;
+    } catch (err) {
+      console.error('❌ Hook: Failed to extend reservation:', err);
+      throw err;
+    }
+  };
+
+  const processPayment = async (reservationId, paymentMethod, amount) => {
+    try {
+      console.log('💳 Hook: Processing payment:', { reservationId, paymentMethod, amount });
+      
+      // simulate a successful payment
+      const response = await ParkingAPI.processPayment({
+        reservationId,
+        paymentMethod,
+        amount,
+      });
+      
       if (response.success) {
         await loadReservations();
       }
+      
       return response;
     } catch (err) {
-      console.error('Failed to extend reservation:', err);
+      console.error('❌ Hook: Failed to process payment:', err);
       throw err;
     }
   };
@@ -228,7 +255,8 @@ export const useReservations = () => {
     loadReservations,
     createReservation,
     cancelReservation,
-    extendReservation
+    extendReservation,
+    processPayment,
   };
 };
 
@@ -353,3 +381,4 @@ export const useSystemHealth = () => {
 
   return { ...health, checkHealth };
 };
+

@@ -1,16 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  RefreshControl,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  Linking,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, RefreshControl, Alert, ActivityIndicator, Modal, Linking, Platform, ScrollView, } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,12 +7,17 @@ import { globalStyles } from '../theme/styles';
 import { colors } from '../theme/colors';
 import { useReservations } from '../hooks/useRealTimeData';
 import ParkingAPI from '../services/api';
+import PaymentService from '../services/paymentService';
 
 const Reservations = ({ navigation }) => {
   const [selectedTab, setSelectedTab] = useState('active');
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [extendLoading, setExtendLoading] = useState(false);
+  const [selectedExtension, setSelectedExtension] = useState(1);
 
   const {
     reservations,
@@ -31,9 +25,42 @@ const Reservations = ({ navigation }) => {
     error,
     loadReservations,
     cancelReservation,
+    extendReservation,
   } = useReservations();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const getHourlyRate = (reservation) => {
+    if (reservation.hourly_rate) {
+      return parseFloat(reservation.hourly_rate);
+    }
+    
+    const startTime = new Date(reservation.start_time);
+    const endTime = new Date(reservation.end_time);
+    const durationHours = (endTime - startTime) / (1000 * 60 * 60);
+    const hourlyRate = parseFloat(reservation.total_cost) / durationHours;
+    
+    console.log('📊 Calculated hourly rate:', {
+      totalCost: reservation.total_cost,
+      durationHours,
+      calculatedRate: hourlyRate
+    });
+    
+    return hourlyRate;
+  };
+
+  const isPaymentCompleted = (reservation) => {
+    return reservation.payment_status === 'paid' || reservation.payment_status === 'completed';
+  };
+
+  const extensionOptions = [
+    { hours: 1, label: '1 hour' },
+    { hours: 2, label: '2 hours' },
+    { hours: 3, label: '3 hours' },
+    { hours: 4, label: '4 hours' },
+    { hours: 5, label: '5 hours' },
+    { hours: 6, label: '6 hours' },
+  ];
 
   const onRefresh = async () => {
     setIsRefreshing(true);
@@ -83,43 +110,94 @@ const Reservations = ({ navigation }) => {
     );
   };
 
-  const getReservationStatus = (reservation) => {
-    console.log('🎯 RESERVATION STATUS: Checking reservation:', {
-      id: reservation.id,
-      status: reservation.status,
-      start_time: reservation.start_time,
-      end_time: reservation.end_time,
-      current_time: new Date().toISOString()
-    });
+  const handleExtendReservation = async () => {
+    try {
+      setExtendLoading(true);
+      
+      const response = await extendReservation(selectedReservation.id, selectedExtension);
+      
+      if (response.success) {
+        setShowExtendModal(false);
+        setShowDetailModal(false);
+        Alert.alert(
+          'Reservation Extended! 🎉',
+          `Your reservation has been extended by ${selectedExtension} ${selectedExtension === 1 ? 'hour' : 'hours'}.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => loadReservations(),
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Extend reservation error:', error);
+      Alert.alert('Error', error.message || 'Failed to extend reservation');
+    } finally {
+      setExtendLoading(false);
+    }
+  };
 
+  const handlePayment = async (paymentMethod) => {
+    try {
+      console.log('💳 Starting payment process:', { paymentMethod, reservation: selectedReservation.id });
+      
+      setShowPaymentModal(false);
+      
+      Alert.alert('Processing Payment', 'Please wait while we process your payment...');
+      
+      const paymentResult = await PaymentService.processPayment(
+        paymentMethod, 
+        parseFloat(selectedReservation.total_cost),
+        { 
+          reservationId: selectedReservation.id,
+          parkingLot: selectedReservation.parking_lot_name,
+          spot: selectedReservation.spot_number
+        }
+      );
+      
+      if (paymentResult.success) {
+        await loadReservations();
+        
+        Alert.alert(
+          'Payment Successful! 💳',
+          `Your payment of RON${selectedReservation.total_cost} has been processed successfully via ${paymentMethod}.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => setShowDetailModal(false),
+            },
+          ]
+        );
+      } else {
+        throw new Error('Payment processing failed');
+      }
+    } catch (error) {
+      console.error('❌ Payment error:', error);
+      
+      let errorMessage = 'Payment failed. Please try again.';
+      
+      if (error.message.includes('cancelled')) {
+        errorMessage = 'Payment was cancelled.';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      Alert.alert('Payment Failed', errorMessage);
+      setShowPaymentModal(true); 
+    }
+  };
+
+  const getReservationStatus = (reservation) => {
     if (reservation.status === 'cancelled') return 'cancelled';
     if (reservation.status === 'completed') return 'completed';
     
     const now = new Date();
-    
-    // Parse MySQL datetime strings (assume they are in local timezone)
     const startTime = new Date(reservation.start_time);
     const endTime = new Date(reservation.end_time);
     
-    console.log('🎯 RESERVATION STATUS: Parsed times:', {
-      now: now.toISOString(),
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-      now_timestamp: now.getTime(),
-      start_timestamp: startTime.getTime(),
-      end_timestamp: endTime.getTime()
-    });
-    
-    if (now < startTime) {
-      console.log('🎯 RESERVATION STATUS: Upcoming (now < startTime)');
-      return 'upcoming';
-    }
-    if (now >= startTime && now <= endTime) {
-      console.log('🎯 RESERVATION STATUS: Active (now between start and end)');
-      return 'active';
-    }
-    
-    console.log('🎯 RESERVATION STATUS: Expired (now > endTime)');
+    if (now < startTime) return 'upcoming';
+    if (now >= startTime && now <= endTime) return 'active';
     return 'expired';
   };
 
@@ -143,20 +221,10 @@ const Reservations = ({ navigation }) => {
   const formatTime = (dateString) => {
     try {
       const date = new Date(dateString);
-      // console.log('🕐 FORMATTING TIME:', {
-      //   input: dateString,
-      //   parsed_date: date.toISOString(),
-      //   formatted: date.toLocaleTimeString('ro-RO', {
-      //     hour: '2-digit',
-      //     minute: '2-digit',
-      //     hour12: false
-      //   })
-      // });
-      
       return date.toLocaleTimeString('ro-RO', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false // Use 24-hour format
+        hour12: false
       });
     } catch (error) {
       console.error('Error formatting time:', error);
@@ -205,13 +273,7 @@ const Reservations = ({ navigation }) => {
   const renderReservation = ({ item }) => {
     const status = getReservationStatus(item);
     const canCancel = (status === 'upcoming' || status === 'active') && item.status === 'active';
-
-    console.log('🎯 RENDER RESERVATION:', {
-      id: item.id,
-      calculated_status: status,
-      db_status: item.status,
-      canCancel
-    });
+    const canExtend = status === 'active' && item.status === 'active';
 
     return (
       <TouchableOpacity
@@ -225,9 +287,6 @@ const Reservations = ({ navigation }) => {
           <View style={{ flex: 1 }}>
             <Text style={globalStyles.subheading}>{item.parking_lot_name}</Text>
             <Text style={[globalStyles.caption, { marginVertical: 4 }]}>
-              {item.address}
-            </Text>
-            <Text style={[globalStyles.caption, { marginBottom: 8 }]}>
               Spot {item.spot_number}
             </Text>
             
@@ -256,6 +315,26 @@ const Reservations = ({ navigation }) => {
                  status === 'completed' ? 'Completed' : status}
               </Text>
             </View>
+            
+            {canExtend && (
+              <TouchableOpacity
+                style={{
+                  marginTop: 8,
+                  backgroundColor: colors.warning,
+                  borderRadius: 6,
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                }}
+                onPress={() => {
+                  setSelectedReservation(item);
+                  setShowExtendModal(true);
+                }}
+              >
+                <Text style={[globalStyles.statusText, { fontSize: 10 }]}>
+                  Extend
+                </Text>
+              </TouchableOpacity>
+            )}
             
             {canCancel && (
               <TouchableOpacity
@@ -316,6 +395,80 @@ const Reservations = ({ navigation }) => {
     );
   };
 
+  const renderExtensionOption = (option) => (
+    <TouchableOpacity
+      key={option.hours}
+      style={[
+        globalStyles.cardSmall,
+        {
+          backgroundColor: selectedExtension === option.hours ? colors.primary : colors.card,
+          marginBottom: 8,
+          marginHorizontal: 8,
+          flex: 1,
+        }
+      ]}
+      onPress={() => setSelectedExtension(option.hours)}
+    >
+      <View style={{ alignItems: 'center' }}>
+        <Text style={[
+          globalStyles.subheading,
+          {
+            color: selectedExtension === option.hours ? colors.white : colors.textPrimary,
+            fontSize: 16,
+            marginBottom: 4,
+          }
+        ]}>
+          {option.label}
+        </Text>
+        {selectedReservation && (
+          <Text style={[
+            globalStyles.caption,
+            {
+              color: selectedExtension === option.hours ? colors.white : colors.textSecondary,
+              fontSize: 12,
+            }
+          ]}>
+            +RON{(getHourlyRate(selectedReservation) * option.hours).toFixed(2)}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderPaymentOption = (method, icon, color) => (
+    <TouchableOpacity
+      key={method}
+      style={[
+        globalStyles.card,
+        {
+          marginBottom: 12,
+          borderColor: color,
+          borderWidth: 1,
+        }
+      ]}
+      onPress={() => handlePayment(method)}
+    >
+      <View style={[globalStyles.row, { alignItems: 'center' }]}>
+        <View style={{
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: color,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginRight: 16,
+        }}>
+          <Ionicons name={icon} size={20} color={colors.white} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={globalStyles.subheading}>{method}</Text>
+          <Text style={globalStyles.caption}>Fast and secure payment</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+      </View>
+    </TouchableOpacity>
+  );
+
   if (loading && !isRefreshing) {
     return (
       <View style={globalStyles.centerContainer}>
@@ -359,7 +512,7 @@ const Reservations = ({ navigation }) => {
         ListEmptyComponent={renderEmptyState}
       />
 
-      {/* Detail Modal with fixed times */}
+      {/* Detail Modal */}
       <Modal
         visible={showDetailModal}
         animationType="slide"
@@ -391,7 +544,7 @@ const Reservations = ({ navigation }) => {
                 <View style={globalStyles.card}>
                   <Text style={globalStyles.subheading}>{selectedReservation.parking_lot_name}</Text>
                   <Text style={[globalStyles.caption, { marginVertical: 8 }]}>
-                    {selectedReservation.address}
+                    Spot {selectedReservation.spot_number}
                   </Text>
                   
                   <View style={[globalStyles.row, { marginBottom: 12 }]}>
@@ -410,13 +563,6 @@ const Reservations = ({ navigation }) => {
                   </View>
 
                   <View style={{ marginBottom: 16 }}>
-                    <View style={[globalStyles.row, { marginBottom: 8 }]}>
-                      <Ionicons name="location-outline" size={20} color={colors.textMuted} />
-                      <Text style={[globalStyles.bodyText, { marginLeft: 8 }]}>
-                        Spot {selectedReservation.spot_number}
-                      </Text>
-                    </View>
-                    
                     <View style={[globalStyles.row, { marginBottom: 8 }]}>
                       <Ionicons name="time-outline" size={20} color={colors.textMuted} />
                       <Text style={[globalStyles.bodyText, { marginLeft: 8 }]}>
@@ -473,7 +619,62 @@ const Reservations = ({ navigation }) => {
 
                   {(() => {
                     const status = getReservationStatus(selectedReservation);
+                    const canExtend = status === 'active' && selectedReservation.status === 'active';
                     const canCancel = (status === 'upcoming' || status === 'active') && selectedReservation.status === 'active';
+                    
+                    if (canExtend) {
+                      return (
+                        <>
+                          <TouchableOpacity
+                            style={[
+                              globalStyles.button,
+                              { 
+                                flex: 1, 
+                                marginLeft: 4,
+                                marginRight: 4,
+                                backgroundColor: colors.warning,
+                              }
+                            ]}
+                            onPress={() => {
+                              setShowDetailModal(false);
+                              setShowExtendModal(true);
+                            }}
+                          >
+                            <Text style={globalStyles.buttonText}>Extend</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[
+                              globalStyles.button,
+                              { 
+                                flex: 1, 
+                                marginLeft: 4,
+                                backgroundColor: isPaymentCompleted(selectedReservation) ? colors.textMuted : colors.info,
+                                opacity: isPaymentCompleted(selectedReservation) ? 0.6 : 1,
+                              }
+                            ]}
+                            onPress={() => {
+                              if (!isPaymentCompleted(selectedReservation)) {
+                                setShowDetailModal(false);
+                                setShowPaymentModal(true);
+                              }
+                            }}
+                            disabled={isPaymentCompleted(selectedReservation)}
+                          >
+                            <View style={globalStyles.row}>
+                              <Ionicons 
+                                name={isPaymentCompleted(selectedReservation) ? "checkmark-circle" : "card"} 
+                                size={16} 
+                                color={colors.white} 
+                              />
+                              <Text style={[globalStyles.buttonText, { marginLeft: 4 }]}>
+                                {isPaymentCompleted(selectedReservation) ? 'Paid' : 'Pay'}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        </>
+                      );
+                    }
                     
                     return canCancel && (
                       <TouchableOpacity
@@ -500,6 +701,161 @@ const Reservations = ({ navigation }) => {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showExtendModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowExtendModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'flex-end',
+        }}>
+          <View style={{
+            backgroundColor: colors.surface,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingHorizontal: 20,
+            paddingTop: 35,
+            paddingBottom: 40,
+          }}>
+            <View style={[globalStyles.spaceBetween, { marginBottom: 1 }]}>
+              <Text style={globalStyles.heading}>Extend Reservation</Text>
+              <TouchableOpacity onPress={() => setShowExtendModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedReservation && (
+              <View style={[globalStyles.card, { marginBottom: 16 }]}>
+                <Text style={globalStyles.subheading}>{selectedReservation.parking_lot_name}</Text>
+                <Text style={globalStyles.caption}>Spot {selectedReservation.spot_number}</Text>
+                <Text style={[globalStyles.bodyText, { marginTop: 8 }]}>
+                  Current end time: {formatTime(selectedReservation.end_time)}
+                </Text>
+              </View>
+            )}
+
+            <Text style={[globalStyles.subheading, { marginBottom: 12 }]}>
+              Select extension duration:
+            </Text>
+            
+            <ScrollView 
+              style={{ maxHeight: 300 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={{ 
+                flexDirection: 'row', 
+                flexWrap: 'wrap', 
+                justifyContent: 'space-between',
+                marginBottom: 20 
+              }}>
+                {extensionOptions.map((option) => (
+                  <View key={option.hours} style={{ width: '48%', marginBottom: 8 }}>
+                    {renderExtensionOption(option)}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+
+            {selectedExtension && selectedReservation && (
+              <View style={[
+                globalStyles.card, 
+                { 
+                  backgroundColor: colors.warning + '20', 
+                  borderColor: colors.warning, 
+                  borderWidth: 1,
+                  marginBottom: 16 
+                }
+              ]}>
+                <Text style={[globalStyles.subheading, { marginBottom: 8 }]}>
+                  Extension Summary
+                </Text>
+                <Text style={globalStyles.bodyText}>
+                  Duration: {selectedExtension} {selectedExtension === 1 ? 'hour' : 'hours'}
+                </Text>
+                <Text style={[globalStyles.bodyText, { color: colors.warning, fontWeight: 'bold' }]}>
+                  Additional Cost: RON{selectedReservation ? (getHourlyRate(selectedReservation) * selectedExtension).toFixed(2) : '0.00'}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[
+                globalStyles.button,
+                { 
+                  backgroundColor: colors.warning,
+                  opacity: extendLoading ? 0.6 : 1,
+                }
+              ]}
+              onPress={handleExtendReservation}
+              disabled={extendLoading}
+            >
+              {extendLoading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={globalStyles.buttonText}>
+                  Extend Reservation
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Modal */}
+      <Modal
+        visible={showPaymentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'flex-end',
+        }}>
+          <View style={{
+            backgroundColor: colors.surface,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingHorizontal: 20,
+            paddingTop: 20,
+            paddingBottom: 40,
+          }}>
+            <View style={[globalStyles.spaceBetween, { marginBottom: 20 }]}>
+              <Text style={globalStyles.heading}>Choose Payment Method</Text>
+              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedReservation && (
+              <View style={[globalStyles.card, { marginBottom: 16 }]}>
+                <Text style={globalStyles.subheading}>Payment for:</Text>
+                <Text style={globalStyles.bodyText}>{selectedReservation.parking_lot_name}</Text>
+                <Text style={[globalStyles.bodyText, { color: colors.primary, fontWeight: 'bold', marginTop: 8 }]}>
+                  Amount: RON{selectedReservation.total_cost}
+                </Text>
+              </View>
+            )}
+
+            <Text style={[globalStyles.subheading, { marginBottom: 12 }]}>
+              Select payment method:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              {renderPaymentOption('Google Pay', 'logo-google', '#4285F4')}
+              {renderPaymentOption('Apple Pay', 'logo-apple', '#000000')}
+              {renderPaymentOption('PayPal', 'card', '#0070BA')}
+              {renderPaymentOption('Credit Card', 'card-outline', colors.primary)}
+              {renderPaymentOption('Bank Transfer', 'business-outline', colors.info)}
+            </ScrollView>
           </View>
         </View>
       </Modal>
