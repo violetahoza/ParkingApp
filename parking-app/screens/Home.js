@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Dimensions, FlatList, Image,} from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Dimensions, FlatList, Image, Alert,} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { globalStyles } from '../theme/styles';
 import { colors } from '../theme/colors';
 import ParkingAPI from '../services/api';
 import { useRealTimeData } from '../hooks/useRealTimeData';
+import { useLocation } from '../hooks/useLocation';
 
 const { width } = Dimensions.get('window');
 
@@ -18,10 +19,27 @@ const Home = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   const { locations, loading: lotsLoading, refreshData } = useRealTimeData();
+  
+  const {
+    location: userLocation,
+    address: userAddress,
+    loading: locationLoading,
+    error: locationError,
+    isLocationAvailable,
+    formattedAddress,
+    initializeLocation,
+    refreshLocation,
+    getDistanceTo,
+  } = useLocation({
+    enableHighAccuracy: false, // use balanced accuracy for home screen to save battery
+    distanceInterval: 100, // update every 100 meters
+    timeInterval: 30000,   // update every 30 seconds
+  });
 
   useEffect(() => {
     loadUserData();
     loadRecentReservations();
+    initializeLocation();
   }, []);
 
   const loadUserData = async () => {
@@ -76,6 +94,7 @@ const Home = ({ navigation }) => {
       loadUserData(),
       loadRecentReservations(),
       refreshData(),
+      refreshLocation(),
     ]);
     setIsRefreshing(false);
   };
@@ -95,6 +114,114 @@ const Home = ({ navigation }) => {
     } else {
       return `http://192.168.100.20:3000${user.profileImageUrl}`;
     }
+  };
+
+  const handleLocationPress = async () => {
+    if (locationError) {
+      Alert.alert(
+        'Location Error',
+        'Unable to get your location. This helps us find parking lots near you.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => initializeLocation() 
+          }
+        ]
+      );
+    } else if (!isLocationAvailable) {
+      Alert.alert(
+        'Enable Location',
+        'Allow location access to see nearby parking lots and get personalized recommendations.',
+        [
+          { text: 'Maybe Later', style: 'cancel' },
+          { 
+            text: 'Enable', 
+            onPress: () => initializeLocation() 
+          }
+        ]
+      );
+    } else {
+      refreshLocation();
+    }
+  };
+
+  // Get nearby parking lots 
+  const getNearbyParkingLots = () => {
+    if (!userLocation) return locations.slice(0, 3);
+
+    return locations
+      .map(lot => ({
+        ...lot,
+        distance: getDistanceTo(lot.latitude, lot.longitude)
+      }))
+      .filter(lot => lot.distance && lot.distance <= 5) // within 5km
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3);
+  };
+
+  const renderLocationWidget = () => {
+    if (locationLoading) {
+      return (
+        <View style={[globalStyles.row, { backgroundColor: colors.info + '20', padding: 12, borderRadius: 8, marginBottom: 16 }]}>
+          <ActivityIndicator size="small" color={colors.info} />
+          <Text style={[globalStyles.caption, { marginLeft: 8, color: colors.info }]}>
+            Getting your location...
+          </Text>
+        </View>
+      );
+    }
+
+    if (locationError) {
+      return (
+        <TouchableOpacity 
+          style={[globalStyles.row, { backgroundColor: colors.warning + '20', padding: 12, borderRadius: 8, marginBottom: 16 }]}
+          onPress={handleLocationPress}
+        >
+          <Ionicons name="location-outline" size={20} color={colors.warning} />
+          <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1, color: colors.warning }]}>
+            Enable location for better parking suggestions
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.warning} />
+        </TouchableOpacity>
+      );
+    }
+
+    if (!isLocationAvailable) {
+      return (
+        <TouchableOpacity 
+          style={[globalStyles.row, { backgroundColor: colors.primary + '20', padding: 12, borderRadius: 8, marginBottom: 16 }]}
+          onPress={handleLocationPress}
+        >
+          <Ionicons name="location-outline" size={20} color={colors.primary} />
+          <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1, color: colors.primary }]}>
+            Tap to enable location for personalized results
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+        </TouchableOpacity>
+      );
+    }
+
+    const nearbyLots = getNearbyParkingLots();
+    const totalNearbySpots = nearbyLots.reduce((sum, lot) => sum + (lot.available_spots || 0), 0);
+
+    return (
+      <TouchableOpacity 
+        style={[globalStyles.row, { backgroundColor: colors.success + '20', padding: 12, borderRadius: 8, marginBottom: 16 }]}
+        onPress={refreshLocation}
+      >
+        <Ionicons name="location" size={20} color={colors.success} />
+        <View style={{ marginLeft: 8, flex: 1 }}>
+          <Text style={[globalStyles.caption, { color: colors.success, fontWeight: 'bold' }]} numberOfLines={1}>
+            📍 {userAddress?.city || 'Current Location'}
+          </Text>
+          <Text style={[globalStyles.caption, { color: colors.success, fontSize: 11 }]} numberOfLines={1}>
+            {totalNearbySpots} spots available nearby
+          </Text>
+        </View>
+        <Ionicons name="refresh" size={16} color={colors.success} />
+      </TouchableOpacity>
+    );
   };
 
   const renderQuickAction = ({ item }) => (
@@ -129,29 +256,41 @@ const Home = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const renderParkingLot = ({ item }) => (
-    <TouchableOpacity
-      style={[globalStyles.card, { marginBottom: 8, padding: 12 }]}
-      onPress={() => navigation.navigate('Navigation', { selectedLot: item })}
-    >
-      <View>
-        <Text style={[globalStyles.subheading, { fontSize: 16, marginBottom: 4 }]}>{item.name}</Text>
-        <Text style={[globalStyles.caption, { marginBottom: 6, fontSize: 12 }]} numberOfLines={1}>
-          {item.address}
-        </Text>
-        <View style={[globalStyles.row, { justifyContent: 'space-between', alignItems: 'center' }]}>
-          <View style={[globalStyles.statusAvailable, { paddingVertical: 2, paddingHorizontal: 8 }]}>
-            <Text style={[globalStyles.statusText, { fontSize: 10 }]}>
-              {item.available_spots || 0} Available
+  const renderParkingLot = ({ item }) => {
+    const distance = userLocation ? getDistanceTo(item.latitude, item.longitude) : null;
+    
+    return (
+      <TouchableOpacity
+        style={[globalStyles.card, { marginBottom: 8, padding: 12 }]}
+        onPress={() => navigation.navigate('Navigation', { selectedLot: item })}
+      >
+        <View>
+          <Text style={[globalStyles.subheading, { fontSize: 16, marginBottom: 4 }]}>{item.name}</Text>
+          <Text style={[globalStyles.caption, { marginBottom: 6, fontSize: 12 }]} numberOfLines={1}>
+            {item.address}
+          </Text>
+          <View style={[globalStyles.row, { justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }]}>
+            <View style={[globalStyles.statusAvailable, { paddingVertical: 2, paddingHorizontal: 8 }]}>
+              <Text style={[globalStyles.statusText, { fontSize: 10 }]}>
+                {item.available_spots || 0} Available
+              </Text>
+            </View>
+            <Text style={[globalStyles.caption, { fontSize: 12 }]}>
+              RON{item.hourly_rate}/hr
             </Text>
           </View>
-          <Text style={[globalStyles.caption, { fontSize: 12 }]}>
-            RON{item.hourly_rate}/hr
-          </Text>
+          {distance !== null && (
+            <View style={[globalStyles.row, { alignItems: 'center' }]}>
+              <Ionicons name="location-outline" size={12} color={colors.textMuted} />
+              <Text style={[globalStyles.caption, { fontSize: 11, marginLeft: 2, color: colors.info }]}>
+                {distance.toFixed(1)} km away
+              </Text>
+            </View>
+          )}
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderReservation = ({ item }) => (
     <TouchableOpacity
@@ -173,7 +312,7 @@ const Home = ({ navigation }) => {
   const quickActions = [
     {
       id: '1',
-      title: 'Find Parking',
+      title: userLocation ? 'Find Nearby' : 'Find Parking',
       icon: 'search',
       color: colors.primary,
       onPress: () => navigation.navigate('Navigation'),
@@ -211,6 +350,8 @@ const Home = ({ navigation }) => {
       </View>
     );
   }
+
+  const nearbyParkingLots = getNearbyParkingLots();
 
   return (
     <SafeAreaView style={globalStyles.container}>
@@ -284,16 +425,18 @@ const Home = ({ navigation }) => {
             </View>
             <View style={{ alignItems: 'center' }}>
               <Text style={[globalStyles.title, { color: colors.white, fontSize: 18, marginBottom: 0 }]}>
-                {locations.reduce((sum, lot) => sum + (lot.available_spots || 0), 0)}
+                {nearbyParkingLots.reduce((sum, lot) => sum + (lot.available_spots || 0), 0)}
               </Text>
               <Text style={[globalStyles.caption, { color: colors.white, opacity: 0.8, fontSize: 12 }]}>
-                Available
+                {userLocation ? 'Nearby Spots' : 'Available'}
               </Text>
             </View>
           </View>
         </LinearGradient>
 
         <View style={{ padding: 20 }}>
+          {renderLocationWidget()}
+          
           <Text style={[globalStyles.heading, { marginBottom: 12, fontSize: 18 }]}>
             Quick Actions
           </Text>
@@ -308,7 +451,9 @@ const Home = ({ navigation }) => {
 
         <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           <View style={[globalStyles.spaceBetween, { marginBottom: 12 }]}>
-            <Text style={[globalStyles.heading, { fontSize: 18 }]}>Nearby Parking</Text>
+            <Text style={[globalStyles.heading, { fontSize: 18 }]}>
+              {userLocation ? 'Nearby Parking' : 'Popular Parking'}
+            </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Navigation')}>
               <Text style={[globalStyles.caption, { color: colors.primary, fontSize: 12 }]}>
                 See All
@@ -320,15 +465,17 @@ const Home = ({ navigation }) => {
             <View style={[globalStyles.center, { height: 80 }]}>
               <ActivityIndicator color={colors.primary} />
             </View>
-          ) : locations.length > 0 ? (
-            locations.slice(0, 3).map((item) => (
+          ) : nearbyParkingLots.length > 0 ? (
+            nearbyParkingLots.map((item) => (
               <View key={item.id.toString()}>
                 {renderParkingLot({ item })}
               </View>
             ))
           ) : (
             <View style={[globalStyles.center, { height: 80, backgroundColor: colors.card, borderRadius: 12 }]}>
-              <Text style={[globalStyles.caption, { fontSize: 12 }]}>No parking lots found</Text>
+              <Text style={[globalStyles.caption, { fontSize: 12 }]}>
+                {userLocation ? 'No parking lots found nearby' : 'No parking lots found'}
+              </Text>
             </View>
           )}
         </View>

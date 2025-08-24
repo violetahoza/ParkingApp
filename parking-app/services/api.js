@@ -451,6 +451,7 @@ class ParkingAPI {
     console.log('💰 API: Parking lot rate response:', response);
     return response;
   } 
+
 }
 
 // Export singleton instance

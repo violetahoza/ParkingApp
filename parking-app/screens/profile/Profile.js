@@ -332,7 +332,7 @@ const Profile = ({ navigation }) => {
             () => navigation.navigate('ManageVehicles')
           )}
 
-          <Text style={[globalStyles.heading, { marginTop: 24, marginBottom: 16 }]}>Settings</Text>
+          {/* <Text style={[globalStyles.heading, { marginTop: 24, marginBottom: 16 }]}>Settings</Text>
 
           {renderSettingOption(
             'Push Notifications',
@@ -350,7 +350,7 @@ const Profile = ({ navigation }) => {
             'Auto Reserve',
             'Automatically book your favorite spots',
             'autoReserve'
-          )}
+          )} */}
 
           <Text style={[globalStyles.heading, { marginTop: 24, marginBottom: 16 }]}>Support</Text>
 

@@ -80,6 +80,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   try {

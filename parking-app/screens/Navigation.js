@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { globalStyles } from '../theme/styles';
 import { colors } from '../theme/colors';
 import { useRealTimeData } from '../hooks/useRealTimeData';
+import { useLocation } from '../hooks/useLocation';
 import ParkingAPI from '../services/api';
 
 const Navigation = ({ navigation, route }) => {
@@ -14,26 +15,40 @@ const Navigation = ({ navigation, route }) => {
   const [parkingSpots, setParkingSpots] = useState([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
-  const [selectedDuration, setSelectedDuration] = useState(2); // Default 2 hours
-  const [userLocation] = useState({
-    latitude: 46.7712,
-    longitude: 23.6236,
-    address: 'Cluj-Napoca, Romania'
+  const [selectedDuration, setSelectedDuration] = useState(2); // default 2 hours
+
+  const {
+    location: userLocation,
+    address: userAddress,
+    loading: locationLoading,
+    error: locationError,
+    isLocationAvailable,
+    formattedAddress,
+    initializeLocation,
+    refreshLocation,
+    getDistanceTo,
+    requestPermissions,
+  } = useLocation({
+    enableHighAccuracy: true,
+    distanceInterval: 50, // update every 50 meters
+    timeInterval: 10000,  // update every 10 seconds
   });
 
   const { locations, loading, refreshData } = useRealTimeData();
 
   const durationOptions = [
-  { value: 0.5, label: '30 mins', price: (rate) => rate ? (rate * 0.5) : 0 },
-  { value: 1, label: '1 hour', price: (rate) => rate ? (rate * 1) : 0 },
-  { value: 2, label: '2 hours', price: (rate) => rate ? (rate * 2) : 0 },
-  { value: 3, label: '3 hours', price: (rate) => rate ? (rate * 3) : 0 },
-  { value: 4, label: '4 hours', price: (rate) => rate ? (rate * 4) : 0 },
-  { value: 6, label: '6 hours', price: (rate) => rate ? (rate * 6) : 0 },
-  { value: 8, label: '8 hours', price: (rate) => rate ? (rate * 8) : 0 },
-  { value: 16, label: '16 hours', price: (rate) => rate ? (rate * 16) : 0 },
-  { value: 24, label: '24 hours', price: (rate) => rate ? (rate * 24) : 0 },
-];
+    { value: 0.5, label: '30 mins', price: (rate) => rate ? (rate * 0.5) : 0 },
+    { value: 1, label: '1 hour', price: (rate) => rate ? (rate * 1) : 0 },
+    { value: 2, label: '2 hours', price: (rate) => rate ? (rate * 2) : 0 },
+    { value: 3, label: '3 hours', price: (rate) => rate ? (rate * 3) : 0 },
+    { value: 4, label: '4 hours', price: (rate) => rate ? (rate * 4) : 0 },
+    { value: 6, label: '6 hours', price: (rate) => rate ? (rate * 6) : 0 },
+    { value: 8, label: '8 hours', price: (rate) => rate ? (rate * 8) : 0 },
+    { value: 16, label: '16 hours', price: (rate) => rate ? (rate * 16) : 0 },
+    { value: 24, label: '24 hours', price: (rate) => rate ? (rate * 24) : 0 },
+  ];
+
+  useEffect(() => { initializeLocation(); }, []);
 
   useEffect(() => {
     if (route.params?.selectedLot) {
@@ -71,7 +86,58 @@ const Navigation = ({ navigation, route }) => {
 
   const handleSearch = (query) => { setSearchQuery(query); };
 
-  const filteredLocations = locations.filter(
+  const handleLocationPress = async () => {
+    if (locationError) {
+      Alert.alert(
+        'Location Error',
+        'Unable to get your location. Would you like to try again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => initializeLocation() 
+          },
+          {
+            text: 'Enable GPS',
+            onPress: async () => {
+              const hasPermission = await requestPermissions();
+              if (hasPermission) {
+                initializeLocation();
+              }
+            }
+          }
+        ]
+      );
+    } else if (!isLocationAvailable) {
+      Alert.alert(
+        'Location Access',
+        'We need your location to show nearby parking lots and calculate distances.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Enable Location', 
+            onPress: () => initializeLocation() 
+          }
+        ]
+      );
+    } else {
+      refreshLocation();
+    }
+  };
+
+  const getSortedLocations = () => {
+    if (!userLocation) {
+      return locations;
+    }
+
+    return [...locations].sort((a, b) => {
+      const distanceA = getDistanceTo(a.latitude, a.longitude) || Infinity;
+      const distanceB = getDistanceTo(b.latitude, b.longitude) || Infinity;
+      return distanceA - distanceB;
+    });
+  };
+
+  const filteredLocations = getSortedLocations().filter(
     location =>
       location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       location.address.toLowerCase().includes(searchQuery.toLowerCase())
@@ -109,7 +175,10 @@ const Navigation = ({ navigation, route }) => {
       });
   };
 
-  const handleBookSpot = () => { if (!selectedLot) return; setShowBookingModal(true); };
+  const handleBookSpot = () => { 
+    if (!selectedLot) return; 
+    setShowBookingModal(true); 
+  };
 
   const confirmBooking = async (spotId) => {
     try {
@@ -188,13 +257,64 @@ const Navigation = ({ navigation, route }) => {
     }
   };
 
-  const renderParkingLot = ({ item }) => {
-    const distance = ParkingAPI.getDistance(
-      userLocation.latitude,
-      userLocation.longitude,
-      item.latitude,
-      item.longitude
+  const renderLocationStatus = () => {
+    if (locationLoading) {
+      return (
+        <View style={[globalStyles.row, { marginBottom: 16, backgroundColor: colors.info + '20', padding: 12, borderRadius: 8 }]}>
+          <ActivityIndicator size="small" color={colors.info} />
+          <Text style={[globalStyles.caption, { marginLeft: 8, color: colors.info }]}>
+            Getting your location...
+          </Text>
+        </View>
+      );
+    }
+
+    if (locationError) {
+      return (
+        <TouchableOpacity 
+          style={[globalStyles.row, { marginBottom: 16, backgroundColor: colors.error + '20', padding: 12, borderRadius: 8 }]}
+          onPress={handleLocationPress}
+        >
+          <Ionicons name="location-outline" size={20} color={colors.error} />
+          <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1, color: colors.error }]}>
+            Location unavailable - Tap to retry
+          </Text>
+          <Ionicons name="refresh" size={16} color={colors.error} />
+        </TouchableOpacity>
+      );
+    }
+
+    if (!isLocationAvailable) {
+      return (
+        <TouchableOpacity 
+          style={[globalStyles.row, { marginBottom: 16, backgroundColor: colors.warning + '20', padding: 12, borderRadius: 8 }]}
+          onPress={handleLocationPress}
+        >
+          <Ionicons name="location-outline" size={20} color={colors.warning} />
+          <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1, color: colors.warning }]}>
+            Enable location for better results
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.warning} />
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity 
+        style={[globalStyles.row, { marginBottom: 16, backgroundColor: colors.success + '20', padding: 12, borderRadius: 8 }]}
+        onPress={refreshLocation}
+      >
+        <Ionicons name="location" size={20} color={colors.success} />
+        <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1, color: colors.success }]} numberOfLines={1}>
+          {formattedAddress}
+        </Text>
+        <Ionicons name="refresh" size={16} color={colors.success} />
+      </TouchableOpacity>
     );
+  };
+
+  const renderParkingLot = ({ item }) => {
+    const distance = userLocation ? getDistanceTo(item.latitude, item.longitude) : null;
 
     return (
       <TouchableOpacity
@@ -228,7 +348,7 @@ const Navigation = ({ navigation, route }) => {
             <View style={globalStyles.row}>
               <Ionicons name="location-outline" size={16} color={colors.textMuted} />
               <Text style={[globalStyles.caption, { marginLeft: 4 }]}>
-                {distance.toFixed(1)} km away
+                {distance !== null ? `${distance.toFixed(1)} km away` : 'Distance unknown'}
               </Text>
             </View>
           </View>
@@ -334,6 +454,34 @@ const Navigation = ({ navigation, route }) => {
     </TouchableOpacity>
   );
 
+  const renderNearbyInfo = () => {
+    if (!userLocation || !locations.length) return null;
+
+    const nearbyLots = locations.filter(lot => {
+      const distance = getDistanceTo(lot.latitude, lot.longitude);
+      return distance && distance <= 2; // Within 2km
+    });
+
+    const totalNearbySpots = nearbyLots.reduce((sum, lot) => sum + (lot.available_spots || 0), 0);
+
+    return (
+      <View style={[globalStyles.card, { marginBottom: 16, backgroundColor: colors.info + '10', borderColor: colors.info, borderWidth: 1 }]}>
+        <View style={[globalStyles.row, { marginBottom: 8 }]}>
+          <Ionicons name="information-circle" size={20} color={colors.info} />
+          <Text style={[globalStyles.subheading, { marginLeft: 8, color: colors.info }]}>
+            Nearby Parking
+          </Text>
+        </View>
+        <Text style={globalStyles.caption}>
+          {nearbyLots.length} parking lot{nearbyLots.length !== 1 ? 's' : ''} within 2km
+        </Text>
+        <Text style={[globalStyles.caption, { color: colors.success, fontWeight: 'bold' }]}>
+          {totalNearbySpots} available spot{totalNearbySpots !== 1 ? 's' : ''}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={globalStyles.container}>
       <View style={globalStyles.header}>
@@ -366,12 +514,8 @@ const Navigation = ({ navigation, route }) => {
           />
         </View>
 
-        <View style={[globalStyles.row, { marginBottom: 16 }]}>
-          <Ionicons name="location" size={20} color={colors.primary} />
-          <Text style={[globalStyles.caption, { marginLeft: 8, flex: 1 }]}>
-            Current: {userLocation.address}
-          </Text>
-        </View>
+        {renderLocationStatus()}
+        {renderNearbyInfo()}
       </View>
 
       {loading ? (
@@ -434,6 +578,11 @@ const Navigation = ({ navigation, route }) => {
                 <Text style={[globalStyles.bodyText, { marginTop: 8 }]}>
                   Rate: RON{selectedLot.hourly_rate}/hour
                 </Text>
+                {userLocation && (
+                  <Text style={[globalStyles.caption, { marginTop: 4, color: colors.info }]}>
+                    📍 {getDistanceTo(selectedLot.latitude, selectedLot.longitude)?.toFixed(1)} km from your location
+                  </Text>
+                )}
               </View>
             )}
 
@@ -474,6 +623,11 @@ const Navigation = ({ navigation, route }) => {
                   <Text style={[globalStyles.bodyText, { color: colors.primary, fontWeight: 'bold' }]}>
                     Total Cost: RON{selectedLot.hourly_rate ? (selectedLot.hourly_rate * selectedDuration).toFixed(2) : '0.00'}
                   </Text>
+                  {userLocation && (
+                    <Text style={[globalStyles.caption, { marginTop: 4, color: colors.textSecondary }]}>
+                      📍 Distance: {getDistanceTo(selectedLot.latitude, selectedLot.longitude)?.toFixed(1)} km
+                    </Text>
+                  )}
                 </View>
               )}
 

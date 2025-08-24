@@ -20,14 +20,39 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Smart Parking App to use your location to find nearby parking spots.",
+          "locationAlwaysPermission": "Allow Smart Parking App to use your location to find nearby parking spots.",
+          "locationWhenInUsePermission": "Allow Smart Parking App to use your location to find nearby parking spots."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Smart Parking App to use your location to find nearby parking spots.",
+        "NSLocationWhenInUseUsageDescription": "Allow Smart Parking App to use your location to find nearby parking spots."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    }
   }
 }
