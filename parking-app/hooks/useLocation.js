@@ -22,12 +22,10 @@ export const useLocation = (options = {}) => {
   const watcherRef = useRef(null);
   const mountedRef = useRef(true);
 
-  // Request location permissions
   const requestPermissions = async () => {
     try {
       console.log('📍 Requesting location permissions...');
       
-      // Request foreground permissions
       let { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
@@ -39,7 +37,6 @@ export const useLocation = (options = {}) => {
 
       console.log('✅ Foreground location permission granted');
 
-      // Request background permissions if needed
       if (enableBackground) {
         const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
         if (backgroundStatus !== 'granted') {
@@ -60,7 +57,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Get current location once
   const getCurrentLocation = async () => {
     try {
       setLoading(true);
@@ -88,7 +84,6 @@ export const useLocation = (options = {}) => {
           timestamp: currentLocation.timestamp,
         });
 
-        // Get reverse geocoding
         await reverseGeocode(currentLocation.coords.latitude, currentLocation.coords.longitude);
       }
 
@@ -118,7 +113,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Start continuous location tracking
   const startTracking = async () => {
     try {
       console.log('🎯 Starting location tracking...');
@@ -165,7 +159,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Stop location tracking
   const stopTracking = async () => {
     try {
       if (watcherRef.current) {
@@ -179,7 +172,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Reverse geocoding to get address
   const reverseGeocode = async (latitude, longitude) => {
     try {
       console.log('🏠 Getting address for coordinates...');
@@ -219,7 +211,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Check if location services are enabled
   const checkLocationServices = async () => {
     try {
       const enabled = await Location.hasServicesEnabledAsync();
@@ -244,7 +235,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Initialize location services
   const initializeLocation = async () => {
     try {
       const servicesEnabled = await checkLocationServices();
@@ -260,7 +250,6 @@ export const useLocation = (options = {}) => {
     }
   };
 
-  // Refresh location manually
   const refreshLocation = async () => {
     try {
       await getCurrentLocation();
@@ -293,7 +282,6 @@ export const useLocation = (options = {}) => {
     return location.timestamp > fiveMinutesAgo;
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
