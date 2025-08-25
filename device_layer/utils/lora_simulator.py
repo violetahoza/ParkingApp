@@ -31,13 +31,12 @@ class LoRaSimulator:
     
     def _compress_payload(self, payload):
         """Compress payload to fit LoRaWAN constraints"""
-        # Shorten field names and values
         compressed = {
-            'i': payload['id'],      # sensor_id
+            'i': payload['id'], # sensor_id
             't': payload['t'][11:19], # time only (HH:MM:SS)
-            'o': 1 if payload['o'] else 0,  # occupied as 1/0
-            'b': int(payload['b']),   # battery as integer
-            'c': int(payload['c'] * 100)  # confidence as percentage
+            'o': 1 if payload['o'] else 0, # occupied as 1/0
+            'b': int(payload['b']), # battery as integer
+            'c': int(payload['c'] * 100) # confidence as percentage
         }
         return compressed
     
@@ -52,7 +51,6 @@ class LoRaSimulator:
         return success
     
     def get_stats(self):
-        """Get transmission statistics"""
         success_rate = ((self.transmission_count - self.failed_transmissions) / 
                        self.transmission_count * 100) if self.transmission_count > 0 else 0
         

@@ -43,12 +43,10 @@ class ParkingSensor:
         return is_occupied, distance, distance_threshold
     
     def generate_reading(self):
-        """Generate a complete sensor reading"""
         is_occupied, distance, threshold = self.detect_occupancy()
         timestamp = datetime.now().isoformat()
         self.reading_count += 1
         
-        # Calculate confidence based on distance from threshold
         confidence = self._calculate_confidence(distance, threshold)
         
         # Update sensor state
