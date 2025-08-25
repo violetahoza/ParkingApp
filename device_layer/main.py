@@ -36,7 +36,6 @@ class ParkingSystemSimulator:
             )
             self.parking_lots.append(lot)
             
-            # Create sensors for each parking spot
             for spot_num in range(1, lot_config["spots"] + 1):
                 sensor_id = f"SENSOR_{lot_id}_{spot_num:04d}"
                 sensor = ParkingSensor(
@@ -50,7 +49,6 @@ class ParkingSystemSimulator:
         print(f"Created {len(self.parking_lots)} parking lots with {len(self.sensors)} sensors")
     
     def simulate(self, duration_hours=1, interval_seconds=10):
-        """Run the parking simulation"""
         print(f"\nStarting simulation for {duration_hours} hour(s)...")
         print(f"Update interval: {interval_seconds} seconds")
         print("-" * 60)
@@ -65,16 +63,9 @@ class ParkingSystemSimulator:
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 print(f"\nCycle {cycle} - {current_time}")
                 
-                # Generate sensor readings
                 readings = self.generate_sensor_readings()
-                
-                # Process and transmit data
                 self.process_and_transmit(readings)
-                
-                # Update parking lot occupancy
                 self.update_parking_occupancy()
-                
-                # Display current status
                 self.display_status()
                 
                 time.sleep(interval_seconds)
@@ -93,7 +84,6 @@ class ParkingSystemSimulator:
         return readings
     
     def process_and_transmit(self, readings):
-        """Process readings and simulate transmission"""
         transmitted_data = []
         
         for reading in readings:
@@ -118,7 +108,6 @@ class ParkingSystemSimulator:
     
     def update_parking_occupancy(self):
         for lot in self.parking_lots:
-            # Count occupied spots for this lot
             occupied_count = sum(1 for sensor in self.sensors 
                                if sensor.parking_lot.lot_id == lot.lot_id 
                                and sensor.is_occupied)
