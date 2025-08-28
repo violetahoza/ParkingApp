@@ -7,6 +7,7 @@ from models.parking_sensor import ParkingSensor
 from utils.data_preprocessor import DataPreprocessor
 from utils.lora_simulator import LoRaSimulator
 import config
+import paho.mqtt.client as mqtt
 
 class ParkingSystemSimulator:
     def __init__(self):
@@ -21,6 +22,15 @@ class ParkingSystemSimulator:
             config.TRANSMISSION_PROBABILITY
         )
         self.setup_parking_lots()
+
+        self.mqtt_client = mqtt.Client(client_id="parking_device_simulator")
+        try:
+            self.mqtt_client.connect("localhost", 1883, 60)
+            self.mqtt_client.loop_start()
+            print("✅ Connected to MQTT broker")
+        except Exception as e:
+            print(f"⚠️ MQTT not available: {e}")
+            self.mqtt_client = None
         
     def setup_parking_lots(self):
         print("Setting up parking lots...")
@@ -97,10 +107,29 @@ class ParkingSystemSimulator:
                 success = self.lora_simulator.simulate_transmission(payload)
                 
                 if success:
+                    if self.mqtt_client:
+                        try:
+                            topic = f"lora/sensors/{processed['sensor_id']}"
+                            
+                            mqtt_payload = {
+                                'i': processed['sensor_id'],
+                                'o': 1 if processed['is_occupied'] else 0,
+                                'c': int(processed['confidence'] * 100),  # confidence as percentage
+                                'b': int(processed['battery_level']),
+                                't': processed['timestamp']
+                            }
+                            
+                            self.mqtt_client.publish(topic, json.dumps(mqtt_payload))
+                            print(f"📡 MQTT -> Edge: {processed['sensor_id']} ({'occupied' if processed['is_occupied'] else 'free'})")
+                            
+                        except Exception as e:
+                            print(f"❌ MQTT publish failed: {e}")
+                    
                     transmitted_data.append({
                         'sensor_id': processed['sensor_id'],
                         'payload_size': size,
-                        'timestamp': processed['timestamp']
+                        'timestamp': processed['timestamp'],
+                        'mqtt_sent': self.mqtt_client is not None
                     })
         
         print(f"Transmitted {len(transmitted_data)} readings via LoRaWAN")

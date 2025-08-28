@@ -6,10 +6,9 @@ SENSOR_UPDATE_FREQUENCY = 30 # seconds between sensor readings
 PARKING_LOTS_CONFIG = [
     {"name": "Piața Unirii Parking", "lat": 46.7696, "lon": 23.5899, "spots": 150},
     {"name": "Iulius Mall Parking", "lat": 46.7712, "lon": 23.6234, "spots": 400},
+    {"name": "Central Park Parking", "lat": 46.7645, "lon": 23.5943, "spots": 80},
     {"name": "BT Arena Parking", "lat": 46.7563, "lon": 23.5712, "spots": 300},
     {"name": "Vivo! Cluj Parking", "lat": 46.7491, "lon": 23.5734, "spots": 500},
-    {"name": "Gara Cluj-Napoca", "lat": 46.7847, "lon": 23.5892, "spots": 120},
-    {"name": "Central Park Parking", "lat": 46.7645, "lon": 23.5943, "spots": 80}
 ]
 
 # Sensor parameters

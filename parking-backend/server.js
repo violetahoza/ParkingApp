@@ -80,6 +80,19 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// const mqtt = require('mqtt');
+
+// const WSL_IP = '192.168.183.170';
+// let mqttClient = null;
+
+// const LOT_ID_MAPPING = {
+//   'CLJ_001': 'Piața Unirii Parking',
+//   'CLJ_002': 'Iulius Mall Parking', 
+//   'CLJ_006': 'Central Park Parking',
+//   'CLJ_003': 'BT Arena Parking',
+//   'CLJ_004': 'Vivo! Cluj Parking'
+// };
+
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
@@ -1157,9 +1170,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Smart Parking API server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📱 Ready for mobile app connections`);
+  
 });
